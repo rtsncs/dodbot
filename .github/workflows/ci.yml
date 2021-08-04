@@ -7,7 +7,7 @@ env:
 
 jobs:
   lint:
-    name: Lint
+    name: Formatter
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -16,16 +16,13 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
             toolchain: stable
-            components: rustfmt, clippy
+            components: rustfmt
             override: true
       - name: Rustfmt
         run: cargo +stable fmt --all -- --check
-      - name: Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
