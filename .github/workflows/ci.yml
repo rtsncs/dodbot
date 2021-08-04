@@ -6,38 +6,27 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-
-  format:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout sources
       - uses: actions/checkout@v2
+      - name: Install toolchain
       - uses: actions-rs/toolchain@v1
         with:
             toolchain: stable
-            components: rustfmt
+            components: rustfmt, clippy
             override: true
-      - uses: mbrobbel/rustfmt-check@master
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-  clippy_check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            components: clippy
-            override: true
+      - name: Rustfmt
+        run: cargo +stable fmt --all -- --check
+      - name: Clippy
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
 
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
     - name: Build
