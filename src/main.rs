@@ -1,6 +1,6 @@
 mod music;
 
-use music::*;
+use music::commands::*;
 use serenity::async_trait;
 use serenity::framework::standard::{macros::group, StandardFramework};
 use serenity::prelude::*;
@@ -24,7 +24,7 @@ struct Music;
 #[tokio::main]
 async fn main() {
     let config = read_to_string("./config.toml")
-        .expect("no config file")
+        .expect("Config file missing")
         .parse::<Value>()
         .unwrap();
     let token = config["token"].as_str().unwrap();
@@ -39,6 +39,16 @@ async fn main() {
         .register_songbird()
         .await
         .expect("Error creating client");
+
+    let shard_manager = client.shard_manager.clone();
+
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Error registering ctrl+c handler");
+        shard_manager.lock().await.shutdown_all().await;
+        println!("Shutting down!");
+    });
 
     if let Err(why) = client.start().await {
         println!("Error starting client: {}", why);

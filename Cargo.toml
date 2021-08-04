@@ -10,7 +10,7 @@ version = "0.10"
 
 [dependencies.tokio]
 version = "1.9"
-features = ["rt-multi-thread", "macros"]
+features = ["rt-multi-thread", "macros", "signal"]
 
 [dependencies.songbird]
 version = "0.1"
