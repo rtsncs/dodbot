@@ -27,14 +27,11 @@ pub async fn voice_check(ctx: &Context, msg: &Message) -> Result<Arc<Mutex<Call>
                     let handler = songbird::get(ctx)
                         .await
                         .expect("Missing Songbird client")
-                        .clone()
                         .get(guild_id)
                         .unwrap();
-                    return Ok(handler);
+                    Ok(handler)
                 } else {
-                    return Err(
-                        "You must be in the same voice channel to use this command".to_string()
-                    );
+                    Err("You must be in the same voice channel to use this command".to_string())
                 }
             }
             None => {
@@ -42,7 +39,7 @@ pub async fn voice_check(ctx: &Context, msg: &Message) -> Result<Arc<Mutex<Call>
             }
         }
     } else {
-        return Err("You must in a voice channel to use this command.".to_string());
+        Err("You must in a voice channel to use this command.".to_string())
     }
 }
 
@@ -64,7 +61,7 @@ pub async fn join(
     if let Err(why) = handler.clone().lock().await.deafen(true).await {
         return Err(why.to_string());
     }
-    return Ok(handler);
+    Ok(handler)
 }
 
 pub async fn react_ok(ctx: &Context, msg: &Message) {

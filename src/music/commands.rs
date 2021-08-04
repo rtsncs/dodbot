@@ -84,7 +84,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         Ok(handler_lock) => {
             let mut handler = handler_lock.lock().await;
 
-            let source = match Restartable::ytdl_search(&query, true).await {
+            let source = match Restartable::ytdl_search(query, true).await {
                 Ok(source) => source,
                 Err(why) => {
                     msg.reply(&ctx.http, format!("{:?}", why)).await?;
