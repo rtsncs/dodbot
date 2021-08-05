@@ -1,5 +1,6 @@
 use crate::guild::Guild;
 use parking_lot::Mutex;
+use rand::prelude::SliceRandom;
 use serenity::{
     async_trait,
     client::Context,
@@ -88,14 +89,67 @@ impl Queue {
     }
 
     pub fn clear(&self) {
-        let mut tracks = self.tracks.lock();
-        tracks.clear();
+        if let Some(track) = self.current() {
+            let mut tracks = self.tracks.lock();
+            tracks.clear();
+            tracks.push_back(track);
+        }
     }
 
     pub fn stop(&self) {
         let mut tracks = self.tracks.lock();
 
         for track in tracks.drain(..) {
+            let _ = track.stop();
+        }
+    }
+
+    pub fn remove(&self, index: usize) -> Option<TrackHandle> {
+        let mut tracks = self.tracks.lock();
+        if index < 1 {
+            return None;
+        }
+        tracks.remove(index)
+    }
+
+    pub fn move_track(&self, from: usize, to: usize) -> Option<TrackHandle> {
+        let mut tracks = self.tracks.lock();
+
+        let track = tracks.remove(from)?;
+        let handle = track.clone();
+        tracks.insert(to, track);
+
+        Some(handle)
+    }
+
+    pub fn swap(&self, first: usize, second: usize) -> Option<(TrackHandle, TrackHandle)> {
+        let mut tracks = self.tracks.lock();
+        let len = tracks.len();
+
+        if !(1..len).contains(&first) || !(1..len).contains(&second) {
+            return None;
+        }
+        let handles = (tracks[first].clone(), tracks[second].clone());
+        tracks.swap(first, second);
+
+        Some(handles)
+    }
+
+    pub fn shuffle(&self) {
+        let mut tracks = self.tracks.lock();
+        if tracks.len() > 1 {
+            let mut old_tracks = tracks.clone();
+            tracks.clear();
+            tracks.push_back(old_tracks.pop_front().unwrap());
+            let mut rng = rand::thread_rng();
+            let mut old_tracks: Vec<TrackHandle> = old_tracks.into();
+            old_tracks.shuffle(&mut rng);
+            tracks.append(&mut old_tracks.into());
+        }
+    }
+
+    pub fn skip(&self) {
+        if let Some(track) = self.current() {
             let _ = track.stop();
         }
     }

@@ -39,7 +39,9 @@ impl EventHandler for Handler {
 
 #[group]
 #[only_in(guilds)]
-#[commands(play, join, leave, songinfo, queue)]
+#[commands(
+    play, join, leave, songinfo, queue, clear, stop, remove, mv, swap, skip, shuffle
+)]
 struct Music;
 
 struct Guilds;

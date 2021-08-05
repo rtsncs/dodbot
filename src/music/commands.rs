@@ -177,3 +177,113 @@ async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
     }
     Ok(())
 }
+
+#[command]
+#[aliases(c)]
+async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+
+    let queue = Queue::get(ctx, &guild_id).await;
+    queue.clear();
+    utils::react_ok(ctx, msg).await;
+
+    Ok(())
+}
+
+#[command]
+async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+
+    let queue = Queue::get(ctx, &guild_id).await;
+    queue.stop();
+    utils::react_ok(ctx, msg).await;
+
+    Ok(())
+}
+
+#[command]
+#[aliases(delete, r, d, rm)]
+async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let index = args.parse::<usize>()?;
+    let guild_id = msg.guild_id.unwrap();
+
+    let queue = Queue::get(ctx, &guild_id).await;
+    let reply = match queue.remove(index) {
+        Some(track) => {
+            format!(
+                "{} has been removed from the queue",
+                track.metadata().title.as_ref().unwrap()
+            )
+        }
+        None => "Index out of range".to_string(),
+    };
+    msg.reply(ctx, reply).await?;
+
+    Ok(())
+}
+
+#[command]
+#[aliases(move)]
+async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let from = args.parse::<usize>()?;
+    let to = args.advance().parse::<usize>().unwrap_or(1);
+    let guild_id = msg.guild_id.unwrap();
+
+    let queue = Queue::get(ctx, &guild_id).await;
+    let reply = match queue.move_track(from, to) {
+        Some(track) => {
+            format!(
+                "{} has been moved to position {}",
+                track.metadata().title.as_ref().unwrap(),
+                to
+            )
+        }
+        None => "Index out of range".to_string(),
+    };
+    msg.reply(ctx, reply).await?;
+
+    Ok(())
+}
+
+#[command]
+async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let first = args.parse::<usize>()?;
+    let second = args.advance().parse::<usize>()?;
+    let guild_id = msg.guild_id.unwrap();
+
+    let queue = Queue::get(ctx, &guild_id).await;
+    let reply = match queue.swap(first, second) {
+        Some((first, second)) => {
+            format!(
+                "{} and {} have been swapped",
+                first.metadata().title.as_ref().unwrap(),
+                second.metadata().title.as_ref().unwrap()
+            )
+        }
+        None => "Index out of range".to_string(),
+    };
+    msg.reply(ctx, reply).await?;
+
+    Ok(())
+}
+
+#[command]
+async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+    let queue = Queue::get(ctx, &guild_id).await;
+    queue.skip();
+    utils::react_ok(ctx, msg).await;
+
+    Ok(())
+}
+
+#[command]
+#[aliases(sh)]
+async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+    let queue = Queue::get(ctx, &guild_id).await;
+    queue.shuffle();
+    utils::react_ok(ctx, msg).await;
+
+    Ok(())
+}

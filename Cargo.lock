@@ -269,6 +269,7 @@ name = "dodbot"
 version = "2.0.0"
 dependencies = [
  "parking_lot",
+ "rand 0.8.4",
  "serenity",
  "songbird",
  "tokio",
