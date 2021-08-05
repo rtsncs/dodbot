@@ -1,12 +1,19 @@
-use std::sync::Arc;
+use super::queue::{Queue, TrackEnd};
+use serenity::{
+    client::Context,
+    model::{
+        channel::Message,
+        id::{ChannelId, GuildId},
+    },
+    prelude::Mutex,
+};
+use songbird::{Call, Event, TrackEvent};
+use std::{sync::Arc, time::Duration};
 
-use serenity::client::Context;
-use serenity::model::channel::Message;
-use serenity::model::id::{ChannelId, GuildId};
-use serenity::prelude::Mutex;
-use songbird::Call;
-
-pub async fn voice_check(ctx: &Context, msg: &Message) -> Result<Arc<Mutex<Call>>, String> {
+pub async fn voice_check(
+    ctx: &Context,
+    msg: &Message,
+) -> Result<(Arc<Mutex<Call>>, Arc<Queue>), String> {
     let guild = msg.guild(&ctx.cache).await.unwrap();
     let guild_id = guild.id;
 
@@ -29,14 +36,15 @@ pub async fn voice_check(ctx: &Context, msg: &Message) -> Result<Arc<Mutex<Call>
                         .expect("Missing Songbird client")
                         .get(guild_id)
                         .unwrap();
-                    Ok(handler)
+
+                    let queue = Queue::get(ctx, &guild_id).await;
+
+                    Ok((handler, queue))
                 } else {
                     Err("You must be in the same voice channel to use this command".to_string())
                 }
             }
-            None => {
-                return join(ctx, guild_id, user_channel_id).await;
-            }
+            None => return join(ctx, guild_id, user_channel_id, msg.channel_id).await,
         }
     } else {
         Err("You must in a voice channel to use this command.".to_string())
@@ -47,7 +55,8 @@ pub async fn join(
     ctx: &Context,
     guild_id: GuildId,
     channel_id: ChannelId,
-) -> Result<Arc<Mutex<Call>>, String> {
+    text_channel_id: ChannelId,
+) -> Result<(Arc<Mutex<Call>>, Arc<Queue>), String> {
     let manager = songbird::get(ctx)
         .await
         .expect("Missing Songbird client")
@@ -61,11 +70,36 @@ pub async fn join(
     if let Err(why) = handler.clone().lock().await.deafen(true).await {
         return Err(why.to_string());
     }
-    Ok(handler)
+
+    let queue = Queue::get(ctx, &guild_id).await;
+    handler.lock().await.add_global_event(
+        Event::Track(TrackEvent::End),
+        TrackEnd {
+            queue: queue.clone(),
+            channel_id: text_channel_id,
+            http: ctx.http.clone(),
+        },
+    );
+
+    Ok((handler, queue))
 }
 
 pub async fn react_ok(ctx: &Context, msg: &Message) {
     if let Err(why) = msg.react(&ctx.http, '✅').await {
         println!("Error reacting to message: {:?}", why);
     }
+}
+
+pub fn duration_to_string(dur: &Duration) -> String {
+    let dur = dur.as_secs();
+    let seconds = dur % 60;
+    let minutes = (dur / 60) % 60;
+    let hours = dur / 60 / 60;
+
+    let mut string = String::new();
+    if hours > 0 {
+        string += &format!("{:>02}:", hours);
+    }
+    string += &format!("{:>02}:{:>02}", minutes, seconds);
+    string
 }

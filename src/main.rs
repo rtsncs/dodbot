@@ -1,25 +1,51 @@
+mod guild;
 mod music;
 
+use guild::Guild;
 use music::commands::*;
-use serenity::async_trait;
-use serenity::framework::standard::{macros::group, StandardFramework};
-use serenity::prelude::*;
+use serenity::{
+    async_trait,
+    framework::standard::{macros::group, StandardFramework},
+    model::{guild::GuildStatus, id::GuildId},
+    prelude::*,
+};
 use songbird::SerenityInit;
-use std::fs::read_to_string;
+use std::{collections::HashMap, fs::read_to_string, sync::Arc};
 use toml::Value;
 
 struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn ready(&self, _ctx: Context, ready: serenity::model::prelude::Ready) {
+    async fn ready(&self, ctx: Context, ready: serenity::model::prelude::Ready) {
         println!("{} connected", ready.user.name);
+
+        let data = ctx.data.read().await;
+        let guilds = data.get::<Guilds>().expect("Guilds missing");
+        let mut guilds_lock = guilds.lock().await;
+
+        for guild in ready.guilds {
+            let guild_id = match guild {
+                GuildStatus::OnlineGuild(g) => g.id,
+                GuildStatus::OnlinePartialGuild(g) => g.id,
+                GuildStatus::Offline(g) => g.id,
+                _ => continue,
+            };
+
+            guilds_lock.insert(guild_id, Guild::new(guild_id));
+        }
     }
 }
 
 #[group]
-#[commands(play, join, leave)]
+#[only_in(guilds)]
+#[commands(play, join, leave, songinfo, queue)]
 struct Music;
+
+struct Guilds;
+impl TypeMapKey for Guilds {
+    type Value = Arc<Mutex<HashMap<GuildId, Arc<Guild>>>>;
+}
 
 #[tokio::main]
 async fn main() {
@@ -39,6 +65,11 @@ async fn main() {
         .register_songbird()
         .await
         .expect("Error creating client");
+
+    {
+        let mut data = client.data.write().await;
+        data.insert::<Guilds>(Arc::new(Mutex::new(HashMap::default())));
+    }
 
     let shard_manager = client.shard_manager.clone();
 
