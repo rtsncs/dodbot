@@ -8,10 +8,10 @@ use serenity::{
     model::id::{ChannelId, GuildId},
 };
 use songbird::{
-    tracks::{Track, TrackHandle},
+    tracks::{Track, TrackHandle, TrackResult},
     Call, EventHandler,
 };
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 pub struct TrackEnd {
     pub queue: Arc<Queue>,
@@ -152,5 +152,26 @@ impl Queue {
         if let Some(track) = self.current() {
             let _ = track.stop();
         }
+    }
+
+    pub fn seek(&self, position: Duration) -> TrackResult<()> {
+        if let Some(track) = self.current() {
+            return track.seek_time(position);
+        }
+        Ok(())
+    }
+
+    pub fn pause(&self) -> TrackResult<()> {
+        if let Some(track) = self.current() {
+            return track.pause();
+        }
+        Ok(())
+    }
+
+    pub fn resume(&self) -> TrackResult<()> {
+        if let Some(track) = self.current() {
+            return track.play();
+        }
+        Ok(())
     }
 }

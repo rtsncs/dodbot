@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::{queue::Queue, utils};
 use serenity::{
     client::Context,
@@ -284,6 +286,53 @@ async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
     let queue = Queue::get(ctx, &guild_id).await;
     queue.shuffle();
     utils::react_ok(ctx, msg).await;
+
+    Ok(())
+}
+
+#[command]
+async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let position = Duration::from_secs(args.parse::<u64>().unwrap());
+    let guild_id = msg.guild_id.unwrap();
+    let queue = Queue::get(ctx, &guild_id).await;
+    match queue.seek(position) {
+        Ok(_) => utils::react_ok(ctx, msg).await,
+        Err(why) => {
+            msg.reply(ctx, "Error").await?;
+            println!("Error seeking track: {:?}", why);
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+async fn pause(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+    let queue = Queue::get(ctx, &guild_id).await;
+    match queue.pause() {
+        Ok(_) => utils::react_ok(ctx, msg).await,
+        Err(why) => {
+            msg.reply(ctx, "Error").await?;
+            println!("Error pausing track: {:?}", why);
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+#[aliases(r, unpause)]
+async fn resume(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+    let queue = Queue::get(ctx, &guild_id).await;
+    match queue.resume() {
+        Ok(_) => utils::react_ok(ctx, msg).await,
+        Err(why) => {
+            msg.reply(ctx, "Error").await?;
+            println!("Error resuming track: {:?}", why);
+        }
+    }
 
     Ok(())
 }

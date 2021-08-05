@@ -40,7 +40,8 @@ impl EventHandler for Handler {
 #[group]
 #[only_in(guilds)]
 #[commands(
-    play, join, leave, songinfo, queue, clear, stop, remove, mv, swap, skip, shuffle
+    play, join, leave, songinfo, queue, clear, stop, remove, mv, swap, skip, shuffle, seek, pause,
+    resume
 )]
 struct Music;
 
