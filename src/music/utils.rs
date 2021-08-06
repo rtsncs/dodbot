@@ -38,7 +38,7 @@ pub async fn voice_check(
                         .get(guild_id)
                         .unwrap();
 
-                    let queue = Queue::get(ctx, &guild_id).await;
+                    let queue = Queue::get(ctx, guild_id).await;
 
                     Ok((handler, queue))
                 } else {
@@ -72,7 +72,7 @@ pub async fn join(
         return Err(why.to_string());
     }
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     handler.lock().await.add_global_event(
         Event::Track(TrackEvent::End),
         TrackEnd {

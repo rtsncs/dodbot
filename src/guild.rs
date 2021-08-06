@@ -14,7 +14,7 @@ impl Guild {
             queue: Queue::new(),
         })
     }
-    pub async fn get(ctx: &Context, guild_id: &GuildId) -> Arc<Self> {
+    pub async fn get(ctx: &Context, guild_id: GuildId) -> Arc<Self> {
         let guilds = ctx
             .data
             .read()
@@ -23,6 +23,6 @@ impl Guild {
             .expect("Error: guild structs missing")
             .clone();
         let guilds_lock = guilds.lock().await;
-        guilds_lock.get(guild_id).unwrap().clone()
+        guilds_lock.get(&guild_id).unwrap().clone()
     }
 }

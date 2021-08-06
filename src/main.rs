@@ -1,3 +1,6 @@
+#![warn(clippy::pedantic)]
+#![allow(clippy::wildcard_imports)]
+
 mod guild;
 mod music;
 

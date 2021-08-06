@@ -60,7 +60,7 @@ impl Queue {
             tracks: Arc::new(Mutex::new(VecDeque::default())),
         })
     }
-    pub async fn get(ctx: &Context, guild_id: &GuildId) -> Arc<Self> {
+    pub async fn get(ctx: &Context, guild_id: GuildId) -> Arc<Self> {
         let guild = Guild::get(ctx, guild_id).await;
 
         guild.queue.clone()

@@ -19,12 +19,11 @@ async fn join(ctx: &Context, msg: &Message) -> CommandResult {
         .get(&msg.author.id)
         .and_then(|voice_state| voice_state.channel_id);
 
-    let channel_id = match channel_id {
-        Some(channel_id) => channel_id,
-        None => {
-            msg.reply(ctx, "You must be in voice channel").await?;
-            return Ok(());
-        }
+    let channel_id = if let Some(channel_id) = channel_id {
+        channel_id
+    } else {
+        msg.reply(ctx, "You must be in voice channel").await?;
+        return Ok(());
     };
 
     match utils::join(ctx, guild_id, channel_id, msg.channel_id).await {
@@ -59,7 +58,7 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
         .id;
 
     if has_handler {
-        let queue = Queue::get(ctx, &guild_id).await;
+        let queue = Queue::get(ctx, guild_id).await;
         queue.stop();
         manager.remove(guild_id).await?;
         utils::react_ok(ctx, msg).await;
@@ -126,7 +125,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
 
     match queue.current() {
         Some(track) => {
@@ -156,7 +155,7 @@ async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
 async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     let tracks = queue.tracklist();
 
     if tracks.len() < 2 {
@@ -185,7 +184,7 @@ async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
 async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     queue.clear();
     utils::react_ok(ctx, msg).await;
 
@@ -196,7 +195,7 @@ async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     queue.stop();
     utils::react_ok(ctx, msg).await;
 
@@ -209,7 +208,7 @@ async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let index = args.parse::<usize>()?;
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     let reply = match queue.remove(index) {
         Some(track) => {
             format!(
@@ -231,7 +230,7 @@ async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let to = args.advance().parse::<usize>().unwrap_or(1);
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     let reply = match queue.move_track(from, to) {
         Some(track) => {
             format!(
@@ -253,7 +252,7 @@ async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let second = args.advance().parse::<usize>()?;
     let guild_id = msg.guild_id.unwrap();
 
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     let reply = match queue.swap(first, second) {
         Some((first, second)) => {
             format!(
@@ -272,7 +271,7 @@ async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 #[command]
 async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     queue.skip();
     utils::react_ok(ctx, msg).await;
 
@@ -283,7 +282,7 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
 #[aliases(sh)]
 async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     queue.shuffle();
     utils::react_ok(ctx, msg).await;
 
@@ -294,7 +293,7 @@ async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
 async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let position = Duration::from_secs(args.parse::<u64>().unwrap());
     let guild_id = msg.guild_id.unwrap();
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     match queue.seek(position) {
         Ok(_) => utils::react_ok(ctx, msg).await,
         Err(why) => {
@@ -309,7 +308,7 @@ async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 async fn pause(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     match queue.pause() {
         Ok(_) => utils::react_ok(ctx, msg).await,
         Err(why) => {
@@ -325,7 +324,7 @@ async fn pause(ctx: &Context, msg: &Message) -> CommandResult {
 #[aliases(r, unpause)]
 async fn resume(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
-    let queue = Queue::get(ctx, &guild_id).await;
+    let queue = Queue::get(ctx, guild_id).await;
     match queue.resume() {
         Ok(_) => utils::react_ok(ctx, msg).await,
         Err(why) => {
