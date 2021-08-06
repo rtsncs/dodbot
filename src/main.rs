@@ -19,6 +19,7 @@ use songbird::SerenityInit;
 use std::{collections::HashMap, fs::read_to_string, sync::Arc};
 use toml::Value;
 use tracing::{error, info, instrument};
+use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter};
 
 struct Handler;
 
@@ -46,10 +47,14 @@ impl EventHandler for Handler {
 
 #[hook]
 #[instrument]
-async fn before(_: &Context, msg: &Message, command_name: &str) -> bool {
+async fn before(ctx: &Context, msg: &Message, command_name: &str) -> bool {
+    let guild_name = match msg.guild(ctx).await {
+        Some(guild) => guild.name,
+        None => "Direct Message".to_string(),
+    };
     info!(
-        "Got command '{}' by user '{}'",
-        command_name, msg.author.name
+        "Got command '{}' by user '{}' in guild '{}'",
+        command_name, msg.author.name, guild_name
     );
     true
 }
@@ -70,7 +75,20 @@ impl TypeMapKey for Guilds {
 #[tokio::main]
 #[instrument]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    let file_appender = tracing_appender::rolling::daily("./logs/", "dodbot_log");
+    let (file_appender, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let subscriber = tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
+        .with(fmt::layer().with_writer(std::io::stdout).compact())
+        .with(
+            fmt::layer()
+                .with_writer(file_appender)
+                .with_ansi(false)
+                .compact(),
+        );
+
+    tracing::subscriber::set_global_default(subscriber).expect("Unable to set global collector");
 
     let config = read_to_string("./config.toml")
         .expect("Config file missing")
