@@ -16,6 +16,8 @@ features = ["rt-multi-thread", "macros", "signal"]
 version = "0.2.0-beta.4"
 
 [dependencies]
-toml = "0.5.8"
+toml = "0.5"
 parking_lot = "0.11"
-rand = "0.8.4"
+rand = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.2"

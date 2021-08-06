@@ -5,20 +5,24 @@ use guild::Guild;
 use music::commands::*;
 use serenity::{
     async_trait,
-    framework::standard::{macros::group, StandardFramework},
-    model::{guild::GuildStatus, id::GuildId},
+    framework::standard::{
+        macros::{group, hook},
+        StandardFramework,
+    },
+    model::{channel::Message, guild::GuildStatus, id::GuildId},
     prelude::*,
 };
 use songbird::SerenityInit;
 use std::{collections::HashMap, fs::read_to_string, sync::Arc};
 use toml::Value;
+use tracing::{error, info, instrument};
 
 struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: serenity::model::prelude::Ready) {
-        println!("{} connected", ready.user.name);
+        info!("{} connected", ready.user.name);
 
         let data = ctx.data.read().await;
         let guilds = data.get::<Guilds>().expect("Guilds missing");
@@ -37,6 +41,16 @@ impl EventHandler for Handler {
     }
 }
 
+#[hook]
+#[instrument]
+async fn before(_: &Context, msg: &Message, command_name: &str) -> bool {
+    info!(
+        "Got command '{}' by user '{}'",
+        command_name, msg.author.name
+    );
+    true
+}
+
 #[group]
 #[only_in(guilds)]
 #[commands(
@@ -51,7 +65,10 @@ impl TypeMapKey for Guilds {
 }
 
 #[tokio::main]
+#[instrument]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     let config = read_to_string("./config.toml")
         .expect("Config file missing")
         .parse::<Value>()
@@ -60,6 +77,7 @@ async fn main() {
 
     let framework = StandardFramework::new()
         .configure(|c| c.with_whitespace(true).prefix("!"))
+        .before(before)
         .group(&MUSIC_GROUP);
 
     let mut client = Client::builder(token)
@@ -80,11 +98,11 @@ async fn main() {
         tokio::signal::ctrl_c()
             .await
             .expect("Error registering ctrl+c handler");
+        info!("Shutting down!");
         shard_manager.lock().await.shutdown_all().await;
-        println!("Shutting down!");
     });
 
     if let Err(why) = client.start().await {
-        println!("Error starting client: {}", why);
+        error!("Error starting client: {}", why);
     }
 }

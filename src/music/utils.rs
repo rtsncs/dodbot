@@ -9,6 +9,7 @@ use serenity::{
 };
 use songbird::{Call, Event, TrackEvent};
 use std::{sync::Arc, time::Duration};
+use tracing::error;
 
 pub async fn voice_check(
     ctx: &Context,
@@ -86,7 +87,7 @@ pub async fn join(
 
 pub async fn react_ok(ctx: &Context, msg: &Message) {
     if let Err(why) = msg.react(&ctx.http, '✅').await {
-        println!("Error reacting to message: {:?}", why);
+        error!("Error reacting to message: {:?}", why);
     }
 }
 

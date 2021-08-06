@@ -12,6 +12,7 @@ use songbird::{
     Call, EventHandler,
 };
 use std::{collections::VecDeque, sync::Arc, time::Duration};
+use tracing::error;
 
 pub struct TrackEnd {
     pub queue: Arc<Queue>,
@@ -29,7 +30,7 @@ impl EventHandler for TrackEnd {
 
             while let Some(track) = tracks.front() {
                 if track.play().is_err() {
-                    println!("Error playing track");
+                    error!("Error playing track");
                     tracks.pop_front();
                 } else {
                     title = track.metadata().title.clone();
@@ -43,7 +44,7 @@ impl EventHandler for TrackEnd {
                 .say(self.http.clone(), format!("Now playing: {}", title))
                 .await
             {
-                println!("Error sending message: {:?}", why);
+                error!("Error sending message: {:?}", why);
             }
         }
         None

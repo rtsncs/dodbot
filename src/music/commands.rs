@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use super::{queue::Queue, utils};
 use serenity::{
     client::Context,
@@ -7,6 +5,8 @@ use serenity::{
     model::channel::Message,
 };
 use songbird::{create_player, input::Restartable};
+use std::time::Duration;
+use tracing::error;
 
 #[command]
 #[aliases(connect)]
@@ -299,7 +299,7 @@ async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         Ok(_) => utils::react_ok(ctx, msg).await,
         Err(why) => {
             msg.reply(ctx, "Error").await?;
-            println!("Error seeking track: {:?}", why);
+            error!("Error seeking track: {:?}", why);
         }
     }
 
@@ -314,7 +314,7 @@ async fn pause(ctx: &Context, msg: &Message) -> CommandResult {
         Ok(_) => utils::react_ok(ctx, msg).await,
         Err(why) => {
             msg.reply(ctx, "Error").await?;
-            println!("Error pausing track: {:?}", why);
+            error!("Error pausing track: {:?}", why);
         }
     }
 
@@ -330,7 +330,7 @@ async fn resume(ctx: &Context, msg: &Message) -> CommandResult {
         Ok(_) => utils::react_ok(ctx, msg).await,
         Err(why) => {
             msg.reply(ctx, "Error").await?;
-            println!("Error resuming track: {:?}", why);
+            error!("Error resuming track: {:?}", why);
         }
     }
 
