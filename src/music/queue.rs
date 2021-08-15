@@ -1,62 +1,28 @@
 use crate::guild::Guild;
-use parking_lot::Mutex;
+use lavalink_rs::{
+    model::{LavalinkResult, Track},
+    LavalinkClient,
+};
 use rand::prelude::SliceRandom;
 use serenity::{
-    async_trait,
     client::Context,
     http::Http,
     model::id::{ChannelId, GuildId},
+    prelude::Mutex,
 };
-use songbird::{
-    tracks::{Track, TrackHandle, TrackResult},
-    Call, EventHandler,
-};
-use std::{collections::VecDeque, sync::Arc, time::Duration};
+use std::{collections::VecDeque, sync::Arc};
 use tracing::error;
 
-pub struct TrackEnd {
-    pub queue: Arc<Queue>,
-    pub channel_id: ChannelId,
-    pub http: Arc<Http>,
-}
-
-#[async_trait]
-impl EventHandler for TrackEnd {
-    async fn act(&self, _ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
-        let mut title = None;
-        {
-            let mut tracks = self.queue.tracks.lock();
-            tracks.pop_front();
-
-            while let Some(track) = tracks.front() {
-                if track.play().is_err() {
-                    error!("Error playing track");
-                    tracks.pop_front();
-                } else {
-                    title = track.metadata().title.clone();
-                    break;
-                }
-            }
-        }
-        if let Some(title) = title {
-            if let Err(why) = self
-                .channel_id
-                .say(self.http.clone(), format!("Now playing: {}", title))
-                .await
-            {
-                error!("Error sending message: {:?}", why);
-            }
-        }
-        None
-    }
-}
-
 pub struct Queue {
-    tracks: Arc<Mutex<VecDeque<TrackHandle>>>,
+    guild_id: GuildId,
+    pub channel_id: Mutex<Option<ChannelId>>,
+    tracks: Arc<Mutex<VecDeque<Track>>>,
 }
 impl Queue {
-    pub fn new() -> Arc<Self> {
+    pub fn new(guild_id: GuildId, channel_id: Option<ChannelId>) -> Arc<Self> {
         Arc::new(Queue {
+            guild_id,
+            channel_id: Mutex::new(channel_id),
             tracks: Arc::new(Mutex::new(VecDeque::default())),
         })
     }
@@ -66,55 +32,52 @@ impl Queue {
         guild.queue.clone()
     }
 
-    pub fn enqueue(&self, mut track: Track, mut handler: tokio::sync::MutexGuard<'_, Call>) {
-        let mut tracks = self.tracks.lock();
+    pub async fn enqueue(&self, track: Track, lava: LavalinkClient) -> LavalinkResult<()> {
+        let mut tracks = self.tracks.lock().await;
 
-        let handle = track.handle.clone();
-
-        if !tracks.is_empty() {
-            track.pause();
+        if tracks.is_empty() {
+            lava.play(self.guild_id, track.clone()).queue().await?;
         }
-        tracks.push_back(handle);
 
-        handler.play(track);
+        tracks.push_back(track);
+        Ok(())
     }
 
-    pub fn current(&self) -> Option<TrackHandle> {
-        let tracks = self.tracks.lock();
+    pub async fn current(&self) -> Option<Track> {
+        let tracks = self.tracks.lock().await;
 
         tracks.get(0).cloned()
     }
 
-    pub fn tracklist(&self) -> VecDeque<TrackHandle> {
-        self.tracks.lock().clone()
+    pub async fn tracklist(&self) -> VecDeque<Track> {
+        self.tracks.lock().await.clone()
     }
 
-    pub fn clear(&self) {
-        if let Some(track) = self.current() {
-            let mut tracks = self.tracks.lock();
+    pub async fn clear(&self) {
+        if let Some(track) = self.current().await {
+            let mut tracks = self.tracks.lock().await;
             tracks.clear();
             tracks.push_back(track);
         }
     }
 
-    pub fn stop(&self) {
-        let mut tracks = self.tracks.lock();
+    pub async fn stop(&self, lava: LavalinkClient) -> LavalinkResult<()> {
+        let mut tracks = self.tracks.lock().await;
+        tracks.clear();
 
-        for track in tracks.drain(..) {
-            let _ = track.stop();
-        }
+        lava.stop(self.guild_id).await
     }
 
-    pub fn remove(&self, index: usize) -> Option<TrackHandle> {
-        let mut tracks = self.tracks.lock();
+    pub async fn remove(&self, index: usize) -> Option<Track> {
+        let mut tracks = self.tracks.lock().await;
         if index < 1 {
             return None;
         }
         tracks.remove(index)
     }
 
-    pub fn move_track(&self, from: usize, to: usize) -> Option<TrackHandle> {
-        let mut tracks = self.tracks.lock();
+    pub async fn move_track(&self, from: usize, to: usize) -> Option<Track> {
+        let mut tracks = self.tracks.lock().await;
 
         let track = tracks.remove(from)?;
         let handle = track.clone();
@@ -123,8 +86,8 @@ impl Queue {
         Some(handle)
     }
 
-    pub fn swap(&self, first: usize, second: usize) -> Option<(TrackHandle, TrackHandle)> {
-        let mut tracks = self.tracks.lock();
+    pub async fn swap(&self, first: usize, second: usize) -> Option<(Track, Track)> {
+        let mut tracks = self.tracks.lock().await;
         let len = tracks.len();
 
         if !(1..len).contains(&first) || !(1..len).contains(&second) {
@@ -136,43 +99,55 @@ impl Queue {
         Some(handles)
     }
 
-    pub fn shuffle(&self) {
-        let mut tracks = self.tracks.lock();
+    pub async fn shuffle(&self) {
+        let mut tracks = self.tracks.lock().await;
         if tracks.len() > 1 {
             let mut old_tracks = tracks.clone();
             tracks.clear();
             tracks.push_back(old_tracks.pop_front().unwrap());
             let mut rng = rand::thread_rng();
-            let mut old_tracks: Vec<TrackHandle> = old_tracks.into();
+            let mut old_tracks: Vec<Track> = old_tracks.into();
             old_tracks.shuffle(&mut rng);
             tracks.append(&mut old_tracks.into());
         }
     }
 
-    pub fn skip(&self) {
-        if let Some(track) = self.current() {
-            let _ = track.stop();
+    pub async fn skip(&self, lava: LavalinkClient) -> LavalinkResult<Option<Track>> {
+        let tracks = self.tracks.lock().await;
+        if !tracks.is_empty() {
+            lava.stop(self.guild_id).await?;
         }
+        Ok(None)
     }
 
-    pub fn seek(&self, position: Duration) -> TrackResult<()> {
-        if let Some(track) = self.current() {
-            return track.seek_time(position);
-        }
-        Ok(())
-    }
+    pub async fn play_next(&self, lava: LavalinkClient, http: &Http) {
+        let mut title = None;
+        {
+            let mut tracks = self.tracks.lock().await;
+            tracks.pop_front();
 
-    pub fn pause(&self) -> TrackResult<()> {
-        if let Some(track) = self.current() {
-            return track.pause();
+            while let Some(track) = tracks.front() {
+                if lava
+                    .play(self.guild_id, track.clone())
+                    .queue()
+                    .await
+                    .is_err()
+                {
+                    error!("Error playing track");
+                    tracks.pop_front();
+                } else {
+                    title = Some(track.info.as_ref().unwrap().title.clone());
+                    break;
+                }
+            }
         }
-        Ok(())
-    }
-
-    pub fn resume(&self) -> TrackResult<()> {
-        if let Some(track) = self.current() {
-            return track.play();
+        if let Some(title) = title {
+            let channel_id = self.channel_id.lock().await;
+            if let Some(channel) = *channel_id {
+                if let Err(why) = channel.say(http, format!("Now playing: {}", title)).await {
+                    error!("Error sending message: {:?}", why);
+                }
+            }
         }
-        Ok(())
     }
 }

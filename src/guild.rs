@@ -11,7 +11,7 @@ impl Guild {
     pub fn new(guild_id: GuildId) -> Arc<Self> {
         Arc::new(Guild {
             guild_id,
-            queue: Queue::new(),
+            queue: Queue::new(guild_id, None),
         })
     }
     pub async fn get(ctx: &Context, guild_id: GuildId) -> Arc<Self> {

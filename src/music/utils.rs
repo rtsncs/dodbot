@@ -1,20 +1,20 @@
-use super::queue::{Queue, TrackEnd};
+use super::queue::Queue;
+use crate::Lavalink;
+use lavalink_rs::LavalinkClient;
 use serenity::{
     client::Context,
     model::{
         channel::Message,
         id::{ChannelId, GuildId},
     },
-    prelude::Mutex,
 };
-use songbird::{Call, Event, TrackEvent};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tracing::error;
 
 pub async fn voice_check(
     ctx: &Context,
     msg: &Message,
-) -> Result<(Arc<Mutex<Call>>, Arc<Queue>), String> {
+) -> Result<(LavalinkClient, Arc<Queue>), String> {
     let guild = msg.guild(&ctx.cache).await.unwrap();
     let guild_id = guild.id;
 
@@ -32,15 +32,11 @@ pub async fn voice_check(
         match bot_channel_id {
             Some(bot_channel_id) => {
                 if bot_channel_id == user_channel_id {
-                    let handler = songbird::get(ctx)
-                        .await
-                        .expect("Missing Songbird client")
-                        .get(guild_id)
-                        .unwrap();
+                    let data = ctx.data.read().await;
+                    let lava = data.get::<Lavalink>().unwrap().clone();
 
                     let queue = Queue::get(ctx, guild_id).await;
-
-                    Ok((handler, queue))
+                    Ok((lava, queue))
                 } else {
                     Err("You must be in the same voice channel to use this command".to_string())
                 }
@@ -57,32 +53,35 @@ pub async fn join(
     guild_id: GuildId,
     channel_id: ChannelId,
     text_channel_id: ChannelId,
-) -> Result<(Arc<Mutex<Call>>, Arc<Queue>), String> {
+) -> Result<(LavalinkClient, Arc<Queue>), String> {
     let manager = songbird::get(ctx)
         .await
         .expect("Missing Songbird client")
         .clone();
 
-    let (handler, result) = manager.join(guild_id, channel_id).await;
+    let (handler, info) = manager.join_gateway(guild_id, channel_id).await;
 
-    if let Err(why) = result {
-        return Err(why.to_string());
-    }
+    let info = match info {
+        Ok(info) => info,
+        Err(why) => return Err(why.to_string()),
+    };
     if let Err(why) = handler.clone().lock().await.deafen(true).await {
         return Err(why.to_string());
     }
 
     let queue = Queue::get(ctx, guild_id).await;
-    handler.lock().await.add_global_event(
-        Event::Track(TrackEvent::End),
-        TrackEnd {
-            queue: queue.clone(),
-            channel_id: text_channel_id,
-            http: ctx.http.clone(),
-        },
-    );
+    {
+        let mut channel = queue.channel_id.lock().await;
+        *channel = Some(text_channel_id);
+    }
 
-    Ok((handler, queue))
+    let data = ctx.data.read().await;
+    let lava_client = data.get::<Lavalink>().unwrap().clone();
+    if let Err(why) = lava_client.create_session(&info).await {
+        return Err(why.to_string());
+    }
+
+    Ok((lava_client, queue))
 }
 
 pub async fn react_ok(ctx: &Context, msg: &Message) {
@@ -91,8 +90,8 @@ pub async fn react_ok(ctx: &Context, msg: &Message) {
     }
 }
 
-pub fn duration_to_string(dur: &Duration) -> String {
-    let dur = dur.as_secs();
+pub fn duration_to_string(dur: u64) -> String {
+    let dur = dur / 1000;
     let seconds = dur % 60;
     let minutes = (dur / 60) % 60;
     let hours = dur / 60 / 60;

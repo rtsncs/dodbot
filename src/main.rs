@@ -5,6 +5,7 @@ mod guild;
 mod music;
 
 use guild::Guild;
+use lavalink_rs::{gateway::*, model::*, LavalinkClient};
 use music::commands::*;
 use serenity::{
     async_trait,
@@ -12,6 +13,7 @@ use serenity::{
         macros::{group, hook},
         StandardFramework,
     },
+    http::Http,
     model::{channel::Message, guild::GuildStatus, id::GuildId},
     prelude::*,
 };
@@ -72,6 +74,32 @@ impl TypeMapKey for Guilds {
     type Value = Arc<Mutex<HashMap<GuildId, Arc<Guild>>>>;
 }
 
+struct Lavalink;
+impl TypeMapKey for Lavalink {
+    type Value = LavalinkClient;
+}
+
+struct LavalinkHandler {
+    guilds: Arc<Mutex<HashMap<GuildId, Arc<Guild>>>>,
+    http: Http,
+}
+
+#[async_trait]
+impl LavalinkEventHandler for LavalinkHandler {
+    async fn track_start(&self, _lava: LavalinkClient, event: TrackStart) {
+        info!("Track started in guild {}", event.guild_id);
+    }
+    async fn track_finish(&self, lava: LavalinkClient, event: TrackFinish) {
+        info!("Track finished in guild {}", event.guild_id);
+        let guild_id = GuildId(event.guild_id);
+        let guilds = self.guilds.lock().await;
+        let guild = guilds.get(&guild_id).unwrap();
+        let queue = guild.queue.clone();
+
+        queue.play_next(lava, &self.http).await;
+    }
+}
+
 #[tokio::main]
 #[instrument]
 async fn main() {
@@ -96,6 +124,13 @@ async fn main() {
         .unwrap();
     let token = config["token"].as_str().unwrap();
 
+    let http = Http::new_with_token(token);
+
+    let bot_id = match http.get_current_application_info().await {
+        Ok(info) => info.id,
+        Err(why) => panic!("Could not access application info: {:?}", why),
+    };
+
     let framework = StandardFramework::new()
         .configure(|c| c.with_whitespace(true).prefix("!"))
         .before(before)
@@ -108,9 +143,22 @@ async fn main() {
         .await
         .expect("Error creating client");
 
+    let guilds = Arc::new(Mutex::new(HashMap::default()));
+
+    let lava_client = LavalinkClient::builder(bot_id)
+        .set_host("127.0.0.1")
+        .set_password("youshallnotpass".to_string())
+        .build(LavalinkHandler {
+            guilds: guilds.clone(),
+            http,
+        })
+        .await
+        .expect("Error creating lava client");
+
     {
         let mut data = client.data.write().await;
-        data.insert::<Guilds>(Arc::new(Mutex::new(HashMap::default())));
+        data.insert::<Guilds>(guilds);
+        data.insert::<Lavalink>(lava_client);
     }
 
     let shard_manager = client.shard_manager.clone();
