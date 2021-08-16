@@ -65,7 +65,7 @@ async fn before(ctx: &Context, msg: &Message, command_name: &str) -> bool {
 #[only_in(guilds)]
 #[commands(
     play, join, leave, songinfo, queue, clear, stop, remove, mv, swap, skip, shuffle, seek, pause,
-    resume, playlist
+    resume, playlist, repeat
 )]
 struct Music;
 

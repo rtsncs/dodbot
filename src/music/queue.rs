@@ -13,9 +13,17 @@ use serenity::{
 use std::{collections::VecDeque, sync::Arc};
 use tracing::error;
 
+#[derive(PartialEq)]
+pub enum LoopModes {
+    None,
+    Song,
+    Queue,
+}
+
 pub struct Queue {
     guild_id: GuildId,
     pub channel_id: Mutex<Option<ChannelId>>,
+    loop_mode: Mutex<LoopModes>,
     tracks: Arc<Mutex<VecDeque<Track>>>,
 }
 impl Queue {
@@ -23,6 +31,7 @@ impl Queue {
         Arc::new(Queue {
             guild_id,
             channel_id: Mutex::new(channel_id),
+            loop_mode: Mutex::new(LoopModes::None),
             tracks: Arc::new(Mutex::new(VecDeque::default())),
         })
     }
@@ -136,10 +145,27 @@ impl Queue {
     }
 
     pub async fn play_next(&self, lava: LavalinkClient, http: &Http) {
+        //TODO: send message when there's an error playing a track
+        let loop_mode = self.loop_mode.lock().await;
+        let mut tracks = self.tracks.lock().await;
+        if *loop_mode == LoopModes::Song {
+            if lava
+                .play(self.guild_id, tracks[0].clone())
+                .queue()
+                .await
+                .is_ok()
+            {
+                return;
+            }
+            error!("Error playing track!");
+        }
+
         let mut title = None;
         {
-            let mut tracks = self.tracks.lock().await;
-            tracks.pop_front();
+            let old = tracks.pop_front().unwrap();
+            if *loop_mode == LoopModes::Queue {
+                tracks.push_back(old);
+            }
 
             while let Some(track) = tracks.front() {
                 if lava
@@ -164,5 +190,10 @@ impl Queue {
                 }
             }
         }
+    }
+
+    pub async fn set_loop_mode(&self, mode: LoopModes) {
+        let mut loop_mode = self.loop_mode.lock().await;
+        *loop_mode = mode;
     }
 }

@@ -1,9 +1,8 @@
-use crate::Lavalink;
-
 use super::{
-    queue::Queue,
-    utils::{self, voice_check},
+    queue::{LoopModes, Queue},
+    utils::{self, react_ok, voice_check},
 };
+use crate::Lavalink;
 use serenity::{
     client::Context,
     framework::standard::{macros::command, Args, CommandResult},
@@ -355,6 +354,8 @@ async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         Ok((lava, _)) => {
             if lava.seek(guild_id, position).await.is_err() {
                 msg.reply(ctx, "Error seeking the track").await?;
+            } else {
+                react_ok(ctx, msg).await;
             }
         }
         Err(why) => {
@@ -372,6 +373,8 @@ async fn pause(ctx: &Context, msg: &Message) -> CommandResult {
         Ok((lava, _)) => {
             if lava.pause(guild_id).await.is_err() {
                 msg.reply(ctx, "Error pausing the track").await?;
+            } else {
+                react_ok(ctx, msg).await;
             }
         }
         Err(why) => {
@@ -390,12 +393,39 @@ async fn resume(ctx: &Context, msg: &Message) -> CommandResult {
         Ok((lava, _)) => {
             if lava.resume(guild_id).await.is_err() {
                 msg.reply(ctx, "Error resuming the track").await?;
+            } else {
+                react_ok(ctx, msg).await;
             }
         }
         Err(why) => {
             msg.reply(ctx, why).await?;
         }
     }
+
+    Ok(())
+}
+
+#[command]
+#[aliases(loop)]
+async fn repeat(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let mode = match args.current() {
+        Some("song") => LoopModes::Song,
+        Some("queue") => LoopModes::Queue,
+        Some("none") => LoopModes::None,
+        None => {
+            msg.reply(ctx, "Missing argument").await?;
+            return Ok(());
+        }
+        _ => {
+            msg.reply(ctx, "Invalid argument").await?;
+            return Ok(());
+        }
+    };
+
+    let guild_id = msg.guild_id.unwrap();
+    let queue = Queue::get(ctx, guild_id).await;
+    queue.set_loop_mode(mode).await;
+    react_ok(ctx, msg).await;
 
     Ok(())
 }
