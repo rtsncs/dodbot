@@ -130,6 +130,40 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
+#[aliases(pl)]
+async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let query = args.message();
+
+    match voice_check(ctx, msg).await {
+        Ok((lava, queue)) => {
+            let query_result = lava.get_tracks(query).await?;
+
+            if query_result.tracks.is_empty() {
+                msg.reply(ctx, "No videos found").await?;
+                return Ok(());
+            }
+            let amount = query_result.tracks.len();
+            if queue
+                .enqueue_multiple(query_result.tracks, lava)
+                .await
+                .is_err()
+            {
+                msg.reply(ctx, "Error queuing the tracks").await?;
+                return Ok(());
+            }
+
+            msg.reply(ctx, format!("Added {} tracks to the queue", amount))
+                .await?;
+        }
+        Err(why) => {
+            msg.reply(ctx, why).await?;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
 #[aliases(nowplaying, np, song)]
 async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();

@@ -43,6 +43,21 @@ impl Queue {
         Ok(())
     }
 
+    pub async fn enqueue_multiple(
+        &self,
+        tracks: Vec<Track>,
+        lava: LavalinkClient,
+    ) -> LavalinkResult<()> {
+        let mut queued_tracks = self.tracks.lock().await;
+
+        if queued_tracks.is_empty() {
+            lava.play(self.guild_id, tracks[0].clone()).queue().await?;
+        }
+
+        queued_tracks.append(&mut tracks.into());
+        Ok(())
+    }
+
     pub async fn current(&self) -> Option<Track> {
         let tracks = self.tracks.lock().await;
 
