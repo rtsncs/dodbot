@@ -11,7 +11,7 @@ default-features = false
 features = ["cache", "client", "framework", "gateway", "model", "standard_framework", "rustls_backend", "voice"]
 
 [dependencies.tokio]
-version = "1.9"
+version = "1.10"
 features = ["rt-multi-thread", "macros", "signal"]
 
 [dependencies.songbird]
