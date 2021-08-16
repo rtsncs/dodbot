@@ -24,6 +24,7 @@ pub struct Queue {
     guild_id: GuildId,
     pub channel_id: Mutex<Option<ChannelId>>,
     loop_mode: Mutex<LoopModes>,
+    skipped: Mutex<bool>,
     tracks: Arc<Mutex<VecDeque<Track>>>,
 }
 impl Queue {
@@ -32,6 +33,7 @@ impl Queue {
             guild_id,
             channel_id: Mutex::new(channel_id),
             loop_mode: Mutex::new(LoopModes::None),
+            skipped: Mutex::new(false),
             tracks: Arc::new(Mutex::new(VecDeque::default())),
         })
     }
@@ -136,19 +138,21 @@ impl Queue {
         }
     }
 
-    pub async fn skip(&self, lava: LavalinkClient) -> LavalinkResult<Option<Track>> {
-        let tracks = self.tracks.lock().await;
-        if !tracks.is_empty() {
-            lava.stop(self.guild_id).await?;
-        }
-        Ok(None)
+    pub async fn skip(&self, lava: LavalinkClient) -> LavalinkResult<()> {
+        let mut skipped = self.skipped.lock().await;
+        *skipped = true;
+        lava.skip(self.guild_id).await;
+        lava.stop(self.guild_id).await?;
+
+        Ok(())
     }
 
     pub async fn play_next(&self, lava: LavalinkClient, http: &Http) {
         //TODO: send message when there's an error playing a track
         let loop_mode = self.loop_mode.lock().await;
         let mut tracks = self.tracks.lock().await;
-        if *loop_mode == LoopModes::Song {
+        let mut skipped = self.skipped.lock().await;
+        if *loop_mode == LoopModes::Song && !*skipped {
             if lava
                 .play(self.guild_id, tracks[0].clone())
                 .queue()
@@ -163,7 +167,7 @@ impl Queue {
         let mut title = None;
         {
             let old = tracks.pop_front().unwrap();
-            if *loop_mode == LoopModes::Queue {
+            if *loop_mode == LoopModes::Queue && !*skipped {
                 tracks.push_back(old);
             }
 
@@ -190,6 +194,7 @@ impl Queue {
                 }
             }
         }
+        *skipped = false;
     }
 
     pub async fn set_loop_mode(&self, mode: LoopModes) {

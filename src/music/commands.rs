@@ -62,6 +62,7 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
     if has_handler {
         let queue = Queue::get(ctx, guild_id).await;
         queue.clear().await;
+        queue.set_loop_mode(LoopModes::None).await;
 
         let data = ctx.data.read().await;
         let lava = data.get::<crate::Lavalink>().unwrap().clone();
