@@ -164,6 +164,72 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
+async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let query = args.message();
+
+    match utils::voice_check(ctx, msg).await {
+        Ok((lava, queue)) => {
+            let mut query_result = lava.search_tracks(query).await?;
+
+            if query_result.tracks.is_empty() {
+                msg.reply(ctx, "No videos found").await?;
+                return Ok(());
+            }
+            query_result.tracks.truncate(5);
+
+            let mut results = String::new();
+            for (i, track) in query_result.tracks.iter().enumerate() {
+                let info = track.info.as_ref().unwrap();
+                let title = info.title.clone();
+                let length = info.length;
+
+                results += &format!(
+                    "{}. {} [{}]\n",
+                    i + 1,
+                    title,
+                    utils::duration_to_string(length)
+                );
+            }
+
+            msg.reply(ctx, results).await?;
+            if let Some(choice_msg) = msg
+                .author
+                .await_reply(ctx)
+                .channel_id(msg.channel_id)
+                .timeout(Duration::from_secs(10))
+                .await
+            {
+                let choice = choice_msg.content.parse::<usize>();
+                match choice {
+                    Ok(choice) => {
+                        if (1..=5).contains(&choice) {
+                            let track = query_result.tracks[choice - 1].clone();
+                            if queue.enqueue(track, lava).await.is_err() {
+                                choice_msg.reply(ctx, "Error queuing the track").await?;
+                            } else {
+                                react_ok(ctx, &choice_msg).await;
+                            }
+                        } else {
+                            choice_msg.reply(ctx, "Incorrect choice").await?;
+                        }
+                    }
+                    Err(_) => {
+                        choice_msg.reply(ctx, "Incorrect choice").await?;
+                    }
+                }
+            } else {
+                msg.reply(ctx, "No song selected within 10 seconds").await?;
+            }
+        }
+        Err(why) => {
+            msg.reply(ctx, why).await?;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
 #[aliases(nowplaying, np, song)]
 async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();

@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies.serenity]
 version = "0.10"
 default-features = false
-features = ["cache", "client", "framework", "gateway", "model", "standard_framework", "rustls_backend", "voice"]
+features = ["cache", "client", "collector", "framework", "gateway", "model", "standard_framework", "rustls_backend", "voice"]
 
 [dependencies.tokio]
 version = "1.10"
