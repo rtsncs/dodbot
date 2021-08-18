@@ -45,6 +45,78 @@ impl EventHandler for Handler {
             guilds_lock.insert(guild_id, Guild::new(guild_id));
         }
     }
+
+    async fn voice_state_update(
+        &self,
+        ctx: Context,
+        guild_id: Option<GuildId>,
+        old: Option<serenity::model::prelude::VoiceState>,
+        new: serenity::model::prelude::VoiceState,
+    ) {
+        if new.user_id != ctx.cache.current_user_id().await {
+            return;
+        }
+        match &old {
+            Some(old) => {
+                if old.channel_id == new.channel_id {
+                    return;
+                }
+            }
+            _ => return,
+        }
+        if new.channel_id.is_some() {
+            let guild_id = guild_id.unwrap();
+            let guild_name = guild_id
+                .name(&ctx)
+                .await
+                .unwrap_or_else(|| guild_id.to_string());
+            info!("Moved channel in guild {}", guild_name);
+
+            let data = ctx.data.read().await;
+            let lava = data.get::<Lavalink>().unwrap();
+            if lava.pause(guild_id).await.is_err() {
+                error!("Error pausing track");
+            }
+
+            // wait for the call to update
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let manager = songbird::get(&ctx).await.unwrap();
+            let call = manager.get(guild_id).unwrap();
+            let call_lock = call.lock().await;
+            let info = call_lock.current_connection().unwrap().clone();
+
+            let event = Event {
+                token: info.token,
+                endpoint: info.endpoint,
+                guild_id: info.guild_id.to_string(),
+            };
+            let payload = VoiceUpdate {
+                session_id: info.session_id,
+                event,
+            };
+
+            let mut lava_inner = lava.inner.lock().await;
+            if SendOpcode::VoiceUpdate(payload)
+                .send(guild_id, &mut lava_inner.socket_write)
+                .await
+                .is_err()
+            {
+                error!("Error updating voice channel!");
+            }
+            drop(lava_inner);
+
+            if lava.resume(guild_id).await.is_err() {
+                error!("Error resuming track");
+            }
+        } else {
+            let queue = music::queue::Queue::get(&ctx, guild_id.unwrap()).await;
+            queue.clear().await;
+            queue.set_loop_mode(music::queue::LoopModes::None).await;
+            let data = ctx.data.read().await;
+            let lava = data.get::<Lavalink>().unwrap();
+            let _err = lava.destroy(guild_id.unwrap()).await;
+        }
+    }
 }
 
 #[hook]
