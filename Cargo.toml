@@ -23,6 +23,10 @@ features = ["serenity-rustls", "gateway"]
 version = "0.8"
 features = ["rustls", "serenity"]
 
+[dependencies.sqlx]
+version = "0.5"
+features = ["runtime-tokio-rustls", "postgres"]
+
 [dependencies]
 toml = "0.5"
 rand = "0.8"

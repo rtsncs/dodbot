@@ -1,4 +1,4 @@
-use super::{
+use crate::music::{
     queue::{LoopModes, Queue},
     utils::{self, react_ok, voice_check},
 };
@@ -131,6 +131,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 #[aliases(pl)]
+#[min_args(1)]
 async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query = args.message();
 
@@ -164,6 +165,7 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 #[command]
+#[min_args(1)]
 async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let query = args.message();
 
@@ -320,6 +322,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
 
 #[command]
 #[aliases(delete, r, d, rm)]
+#[min_args(1)]
 async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let index = args.parse::<usize>()?;
     let guild_id = msg.guild_id.unwrap();
@@ -341,6 +344,7 @@ async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 #[aliases(move)]
+#[min_args(1)]
 async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let from = args.parse::<usize>()?;
     let to = args.advance().parse::<usize>().unwrap_or(1);
@@ -363,6 +367,7 @@ async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 }
 
 #[command]
+#[min_args(2)]
 async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let first = args.parse::<usize>()?;
     let second = args.advance().parse::<usize>()?;
@@ -414,6 +419,7 @@ async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
 }
 
 #[command]
+#[min_args(1)]
 async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let position = Duration::from_secs(args.parse::<u64>().unwrap());
     let guild_id = msg.guild_id.unwrap();
