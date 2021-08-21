@@ -1,2 +1,4 @@
 token = ""
 db_string = "postgres://postgres:password@localhost/dodbot"
+spotify_id = ""
+spotify_secret = ""

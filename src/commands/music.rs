@@ -1,8 +1,13 @@
-use crate::music::{
-    queue::{LoopModes, Queue},
-    utils::{self, react_ok, voice_check},
+use crate::{
+    music::{
+        queue::{LoopModes, Queue, QueuedTrack},
+        utils::{self, react_ok, voice_check},
+    },
+    shared_data::Spotify,
+    Lavalink,
 };
-use crate::Lavalink;
+use regex::Regex;
+use rspotify::{clients::BaseClient, model::Id as SpotifyId};
 use serenity::{
     client::Context,
     framework::standard::{macros::command, Args, CommandResult},
@@ -91,12 +96,37 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
 #[aliases(p)]
 #[min_args(1)]
 async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let query = args.message();
+    let mut query = args.message().to_string();
 
     let is_url = query.starts_with("http");
 
     match utils::voice_check(ctx, msg).await {
         Ok((lava, queue)) => {
+            if query.contains("open.spotify.com") {
+                let data = ctx.data.read().await;
+                let spotify = data.get::<Spotify>().unwrap();
+                let reg = Regex::new(
+                    r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$",
+                )
+                .unwrap();
+                let capture = reg.captures(&query).unwrap();
+                if capture.len() < 3 {
+                    msg.reply(ctx, "Invalid spotify url").await?;
+                    return Ok(());
+                }
+                if &capture[2] != "track" {
+                    msg.reply(
+                        ctx,
+                        "Use the `playlist` command to queue an album or a playlist",
+                    )
+                    .await?;
+                    return Ok(());
+                }
+                let id = &capture[3];
+                let id = SpotifyId::from_id(id)?;
+                let track = spotify.track(id).await?;
+                query = format!("{} - {}", track.artists[0].name, track.name);
+            }
             let query_result = lava.auto_search_tracks(query).await?;
 
             if query_result.tracks.is_empty() {
@@ -105,7 +135,11 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             }
             let track = query_result.tracks[0].clone();
             let info = track.info.clone();
-            if queue.enqueue(track, lava).await.is_err() {
+            if queue
+                .enqueue(QueuedTrack::new_initialized(track), lava)
+                .await
+                .is_err()
+            {
                 msg.reply(ctx, "Error queuing the track").await?;
                 return Ok(());
             }
@@ -133,22 +167,88 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[aliases(pl)]
 #[min_args(1)]
 async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let query = args.message();
+    let query = args.message().to_string();
+    let mut tracks: Vec<QueuedTrack> = Vec::new();
 
     match voice_check(ctx, msg).await {
         Ok((lava, queue)) => {
-            let query_result = lava.get_tracks(query).await?;
+            if query.contains("open.spotify.com") {
+                let data = ctx.data.read().await;
+                let spotify = data.get::<Spotify>().unwrap();
+                let reg = Regex::new(
+                    r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$",
+                )
+                .unwrap();
+                let capture = reg.captures(&query).unwrap();
+                if capture.len() < 3 {
+                    msg.reply(ctx, "Invalid spotify url").await?;
+                    return Ok(());
+                }
+                if &capture[2] == "track" {
+                    msg.reply(ctx, "Use the `play` command to queue a single track")
+                        .await?;
+                    return Ok(());
+                }
+                let id = &capture[3];
+                let mut offset = 0;
+                if &capture[2] == "album" {
+                    let limit = 50;
+                    let id = SpotifyId::from_id(id)?;
+                    loop {
+                        let album = spotify
+                            .album_track_manual(id, Some(limit), Some(offset))
+                            .await?;
 
-            if query_result.tracks.is_empty() {
-                msg.reply(ctx, "No videos found").await?;
+                        for track in album.items {
+                            let title = track.name;
+                            let artist = track.artists[0].name.clone();
+                            let length = track.duration;
+                            let query = format!("{} - {}", &artist, &title);
+                            tracks.push(QueuedTrack::new(query, artist, length));
+                        }
+
+                        if album.next.is_none() {
+                            break;
+                        }
+                        offset += limit;
+                    }
+                } else {
+                    let limit = 100;
+                    let id = SpotifyId::from_id(id)?;
+                    loop {
+                        let playlist = spotify
+                            .playlist_tracks_manual(id, None, None, Some(limit), Some(offset))
+                            .await?;
+
+                        for item in playlist.items {
+                            if let Some(rspotify::model::PlayableItem::Track(track)) = item.track {
+                                let title = track.name;
+                                let artist = track.artists[0].name.clone();
+                                let length = track.duration;
+                                let query = format!("{} - {}", &artist, &title);
+                                tracks.push(QueuedTrack::new(query, artist, length));
+                            }
+                        }
+
+                        if playlist.next.is_none() {
+                            break;
+                        }
+                        offset += limit;
+                    }
+                }
+            } else {
+                let query_result = lava.get_tracks(query).await?;
+                for track in query_result.tracks {
+                    tracks.push(QueuedTrack::new_initialized(track));
+                }
+            }
+
+            if tracks.is_empty() {
+                msg.reply(ctx, "No matches found").await?;
                 return Ok(());
             }
-            let amount = query_result.tracks.len();
-            if queue
-                .enqueue_multiple(query_result.tracks, lava)
-                .await
-                .is_err()
-            {
+            let amount = tracks.len();
+            if queue.enqueue_multiple(tracks, lava).await.is_err() {
                 msg.reply(ctx, "Error queuing the tracks").await?;
                 return Ok(());
             }
@@ -189,7 +289,7 @@ async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     "{}. {} [{}]\n",
                     i + 1,
                     title,
-                    utils::duration_to_string(length)
+                    utils::length_to_string(length)
                 );
             }
 
@@ -206,7 +306,11 @@ async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     Ok(choice) => {
                         if (1..=5).contains(&choice) {
                             let track = query_result.tracks[choice - 1].clone();
-                            if queue.enqueue(track, lava).await.is_err() {
+                            if queue
+                                .enqueue(QueuedTrack::new_initialized(track), lava)
+                                .await
+                                .is_err()
+                            {
                                 choice_msg.reply(ctx, "Error queuing the track").await?;
                             } else {
                                 react_ok(ctx, &choice_msg).await;
@@ -247,8 +351,8 @@ async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
             let info = track.track.info.as_ref().unwrap();
             let title = info.title.clone();
 
-            let pos = utils::duration_to_string(info.position);
-            let duration = utils::duration_to_string(info.length);
+            let pos = utils::length_to_string(info.position / 1000);
+            let duration = utils::length_to_string(info.length / 1000);
 
             msg.reply(
                 ctx,
@@ -280,8 +384,8 @@ async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
             if i == 0 {
                 continue;
             }
-            let title = &track.info.as_ref().unwrap().title;
-            let duration = utils::duration_to_string(track.info.as_ref().unwrap().length);
+            let title = &track.title;
+            let duration = utils::length_to_string(track.length.as_secs());
 
             tracklist += &format!("{}. {} ({})\n", i, title, duration);
         }
@@ -330,10 +434,7 @@ async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let queue = Queue::get(ctx, guild_id).await;
     let reply = match queue.remove(index).await {
         Some(track) => {
-            format!(
-                "{} has been removed from the queue",
-                track.info.unwrap().title
-            )
+            format!("{} has been removed from the queue", &track.title)
         }
         None => "Index out of range".to_string(),
     };
@@ -353,11 +454,7 @@ async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let queue = Queue::get(ctx, guild_id).await;
     let reply = match queue.move_track(from, to).await {
         Some(track) => {
-            format!(
-                "{} has been moved to position {}",
-                track.info.unwrap().title,
-                to
-            )
+            format!("{} has been moved to position {}", &track.title, to)
         }
         None => "Index out of range".to_string(),
     };
@@ -376,11 +473,7 @@ async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let queue = Queue::get(ctx, guild_id).await;
     let reply = match queue.swap(first, second).await {
         Some((first, second)) => {
-            format!(
-                "{} and {} have been swapped",
-                first.info.unwrap().title,
-                second.info.unwrap().title,
-            )
+            format!("{} and {} have been swapped", &first.title, &second.title,)
         }
         None => "Index out of range".to_string(),
     };

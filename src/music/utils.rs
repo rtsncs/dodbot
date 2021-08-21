@@ -90,8 +90,7 @@ pub async fn react_ok(ctx: &Context, msg: &Message) {
     }
 }
 
-pub fn duration_to_string(dur: u64) -> String {
-    let dur = dur / 1000;
+pub fn length_to_string(dur: u64) -> String {
     let seconds = dur % 60;
     let minutes = (dur / 60) % 60;
     let hours = dur / 60 / 60;

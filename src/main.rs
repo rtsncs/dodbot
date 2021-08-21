@@ -14,6 +14,7 @@ use events::*;
 use framework::*;
 use framework_functions::*;
 use lavalink_rs::LavalinkClient;
+use rspotify::{ClientCredsSpotify, Credentials};
 use serenity::{
     client::bridge::gateway::GatewayIntents, framework::standard::StandardFramework, http::Http,
     prelude::*,
@@ -106,11 +107,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await?;
 
+    let spotify_creds = Credentials {
+        id: config["spotify_id"].as_str().unwrap().to_string(),
+        secret: config["spotify_secret"].as_str().unwrap().to_string(),
+    };
+
+    let mut spotify_client = ClientCredsSpotify::new(spotify_creds);
+    spotify_client.request_token().await?;
+
     {
         let mut data = client.data.write().await;
         data.insert::<Database>(pool);
         data.insert::<Guilds>(guilds);
         data.insert::<Lavalink>(lava_client);
+        data.insert::<Spotify>(spotify_client);
     }
 
     let shard_manager = client.shard_manager.clone();

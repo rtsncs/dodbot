@@ -1,5 +1,6 @@
 use crate::guild::Guild;
 use lavalink_rs::LavalinkClient;
+use rspotify::ClientCredsSpotify;
 use serenity::{model::id::GuildId, prelude::*};
 use sqlx::PgPool;
 use std::{collections::HashMap, sync::Arc};
@@ -17,4 +18,9 @@ impl TypeMapKey for Lavalink {
 pub struct Database;
 impl TypeMapKey for Database {
     type Value = PgPool;
+}
+
+pub struct Spotify;
+impl TypeMapKey for Spotify {
+    type Value = ClientCredsSpotify;
 }
