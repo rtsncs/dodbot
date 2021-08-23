@@ -595,3 +595,34 @@ async fn repeat(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     Ok(())
 }
+
+#[command]
+#[aliases(vol)]
+#[min_args(1)]
+async fn volume(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let volume = if let Ok(volume) = args.parse::<u16>() {
+        if volume > 1000 {
+            msg.reply(ctx, "Volume must be between 0% and 1000%")
+                .await?;
+            return Ok(());
+        }
+        volume
+    } else {
+        msg.reply(ctx, "Volume must be between 0% and 1000%")
+            .await?;
+        return Ok(());
+    };
+    let guild_id = msg.guild_id.unwrap();
+
+    match voice_check(ctx, msg).await {
+        Ok((lava, _)) => {
+            lava.volume(guild_id, volume).await?;
+            react_ok(ctx, msg).await;
+        }
+        Err(why) => {
+            msg.reply(ctx, why).await?;
+        }
+    }
+
+    Ok(())
+}

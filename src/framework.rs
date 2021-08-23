@@ -5,7 +5,7 @@ use serenity::framework::standard::macros::group;
 #[only_in(guilds)]
 #[commands(
     play, join, leave, songinfo, queue, clear, stop, remove, mv, swap, skip, shuffle, seek, pause,
-    resume, playlist, repeat, search
+    resume, playlist, repeat, search, volume
 )]
 pub struct Music;
 
