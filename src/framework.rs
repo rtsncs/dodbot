@@ -11,6 +11,6 @@ pub struct Music;
 
 #[group]
 #[only_in(guilds)]
-#[commands(setprefix)]
+#[commands(setprefix, roundrobin)]
 #[required_permissions(ADMINISTRATOR)]
 pub struct Admin;

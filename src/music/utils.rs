@@ -7,6 +7,7 @@ use serenity::{
         channel::Message,
         id::{ChannelId, GuildId},
     },
+    prelude::Mutex,
 };
 use std::sync::Arc;
 use tracing::error;
@@ -14,7 +15,7 @@ use tracing::error;
 pub async fn voice_check(
     ctx: &Context,
     msg: &Message,
-) -> Result<(LavalinkClient, Arc<Queue>), String> {
+) -> Result<(LavalinkClient, Arc<Mutex<Queue>>), String> {
     let guild = msg.guild(&ctx.cache).await.unwrap();
     let guild_id = guild.id;
 
@@ -53,7 +54,7 @@ pub async fn join(
     guild_id: GuildId,
     channel_id: ChannelId,
     text_channel_id: ChannelId,
-) -> Result<(LavalinkClient, Arc<Queue>), String> {
+) -> Result<(LavalinkClient, Arc<Mutex<Queue>>), String> {
     let manager = songbird::get(ctx)
         .await
         .expect("Missing Songbird client")
@@ -71,8 +72,8 @@ pub async fn join(
 
     let queue = Queue::get(ctx, guild_id).await;
     {
-        let mut channel = queue.channel_id.lock().await;
-        *channel = Some(text_channel_id);
+        let mut queue_lock = queue.lock().await;
+        queue_lock.channel_id = Some(text_channel_id);
     }
 
     let data = ctx.data.read().await;

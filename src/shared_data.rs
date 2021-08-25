@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 
 pub struct Guilds;
 impl TypeMapKey for Guilds {
-    type Value = Arc<Mutex<HashMap<GuildId, Arc<Guild>>>>;
+    type Value = Arc<Mutex<HashMap<GuildId, Arc<Mutex<Guild>>>>>;
 }
 
 pub struct Lavalink;

@@ -1,11 +1,10 @@
+use crate::guild::Guild;
 use serenity::{
     framework::standard::{macros::hook, CommandResult, DispatchError},
     model::prelude::*,
     prelude::*,
 };
 use tracing::{info, log::error};
-
-use crate::Database;
 
 #[hook]
 pub async fn on_dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
@@ -64,20 +63,9 @@ pub async fn after(ctx: &Context, msg: &Message, cmd_name: &str, res: CommandRes
 
 #[hook]
 pub async fn dynamic_prefix(ctx: &Context, msg: &Message) -> Option<String> {
-    let guild_id = msg.guild_id.unwrap().0 as i64;
-    let data = ctx.data.read().await;
-    let db = data.get::<Database>().unwrap();
+    let guild_id = msg.guild_id.unwrap();
+    let guild = Guild::get(ctx, guild_id).await;
+    let guild_lock = guild.lock().await;
 
-    let prefix = match sqlx::query!("SELECT prefix FROM guilds WHERE guild_id = $1", guild_id)
-        .fetch_one(db)
-        .await
-    {
-        Ok(result) => result.prefix.unwrap_or_else(|| "!".to_string()),
-        Err(why) => {
-            error!("Error fetching prefix from database: {:?}", why);
-            "!".to_string()
-        }
-    };
-
-    Some(prefix)
+    Some(guild_lock.prefix.clone())
 }

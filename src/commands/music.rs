@@ -66,8 +66,9 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
 
     if has_handler {
         let queue = Queue::get(ctx, guild_id).await;
-        queue.clear().await;
-        queue.set_loop_mode(LoopModes::None).await;
+        let mut queue_lock = queue.lock().await;
+        queue_lock.clear();
+        queue_lock.set_loop_mode(LoopModes::None);
 
         let data = ctx.data.read().await;
         let lava = data.get::<crate::Lavalink>().unwrap().clone();
@@ -136,7 +137,9 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             let track = query_result.tracks[0].clone();
             let info = track.info.clone();
             if queue
-                .enqueue(QueuedTrack::new_initialized(track), lava)
+                .lock()
+                .await
+                .enqueue(QueuedTrack::new_initialized(track, msg.author.id), lava)
                 .await
                 .is_err()
             {
@@ -204,7 +207,7 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                             let artist = track.artists[0].name.clone();
                             let length = track.duration;
                             let query = format!("{} - {}", &artist, &title);
-                            tracks.push(QueuedTrack::new(query, artist, length));
+                            tracks.push(QueuedTrack::new(query, artist, length, msg.author.id));
                         }
 
                         if album.next.is_none() {
@@ -226,7 +229,7 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                                 let artist = track.artists[0].name.clone();
                                 let length = track.duration;
                                 let query = format!("{} - {}", &artist, &title);
-                                tracks.push(QueuedTrack::new(query, artist, length));
+                                tracks.push(QueuedTrack::new(query, artist, length, msg.author.id));
                             }
                         }
 
@@ -239,7 +242,7 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             } else {
                 let query_result = lava.get_tracks(query).await?;
                 for track in query_result.tracks {
-                    tracks.push(QueuedTrack::new_initialized(track));
+                    tracks.push(QueuedTrack::new_initialized(track, msg.author.id));
                 }
             }
 
@@ -248,7 +251,13 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 return Ok(());
             }
             let amount = tracks.len();
-            if queue.enqueue_multiple(tracks, lava).await.is_err() {
+            if queue
+                .lock()
+                .await
+                .enqueue_multiple(tracks, lava)
+                .await
+                .is_err()
+            {
                 msg.reply(ctx, "Error queuing the tracks").await?;
                 return Ok(());
             }
@@ -307,7 +316,9 @@ async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                         if (1..=5).contains(&choice) {
                             let track = query_result.tracks[choice - 1].clone();
                             if queue
-                                .enqueue(QueuedTrack::new_initialized(track), lava)
+                                .lock()
+                                .await
+                                .enqueue(QueuedTrack::new_initialized(track, msg.author.id), lava)
                                 .await
                                 .is_err()
                             {
@@ -373,21 +384,20 @@ async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
     let queue = Queue::get(ctx, guild_id).await;
-    let tracks = queue.tracklist().await;
+    let queue_lock = queue.lock().await;
+    let tracks = queue_lock.tracklist();
 
-    if tracks.len() < 2 {
+    if tracks.is_empty() {
         msg.reply(ctx, "The queue is empty.").await?;
     } else {
         let mut tracklist = String::new();
 
         for (i, track) in tracks.iter().enumerate() {
-            if i == 0 {
-                continue;
-            }
             let title = &track.title;
             let duration = utils::length_to_string(track.length.as_secs());
+            let requester = track.requester.0;
 
-            tracklist += &format!("{}. {} ({})\n", i, title, duration);
+            tracklist += &format!("{}. {} ({}) - <@{}>\n", i + 1, title, duration, requester);
         }
 
         msg.reply(ctx, tracklist).await?;
@@ -401,7 +411,8 @@ async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
     let queue = Queue::get(ctx, guild_id).await;
-    queue.clear().await;
+    let mut queue_lock = queue.lock().await;
+    queue_lock.clear();
     utils::react_ok(ctx, msg).await;
 
     Ok(())
@@ -411,7 +422,7 @@ async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     match voice_check(ctx, msg).await {
         Ok((lava, queue)) => {
-            if queue.stop(lava).await.is_err() {
+            if queue.lock().await.stop(lava).await.is_err() {
                 msg.reply(ctx, "Error stopping").await?;
             } else {
                 utils::react_ok(ctx, msg).await;
@@ -432,7 +443,8 @@ async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
     let queue = Queue::get(ctx, guild_id).await;
-    let reply = match queue.remove(index).await {
+    let mut queue_lock = queue.lock().await;
+    let reply = match queue_lock.remove(index - 1) {
         Some(track) => {
             format!("{} has been removed from the queue", &track.title)
         }
@@ -452,7 +464,8 @@ async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
     let queue = Queue::get(ctx, guild_id).await;
-    let reply = match queue.move_track(from, to).await {
+    let mut queue_lock = queue.lock().await;
+    let reply = match queue_lock.move_track(from - 1, to - 1) {
         Some(track) => {
             format!("{} has been moved to position {}", &track.title, to)
         }
@@ -471,7 +484,8 @@ async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
 
     let queue = Queue::get(ctx, guild_id).await;
-    let reply = match queue.swap(first, second).await {
+    let mut queue_lock = queue.lock().await;
+    let reply = match queue_lock.swap(first - 1, second - 1) {
         Some((first, second)) => {
             format!("{} and {} have been swapped", &first.title, &second.title,)
         }
@@ -486,7 +500,7 @@ async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
     match voice_check(ctx, msg).await {
         Ok((lava, queue)) => {
-            if queue.skip(lava).await.is_err() {
+            if queue.lock().await.skip(lava).await.is_err() {
                 msg.reply(ctx, "Error skipping the track").await?;
             } else {
                 utils::react_ok(ctx, msg).await;
@@ -505,7 +519,8 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
 async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
     let queue = Queue::get(ctx, guild_id).await;
-    queue.shuffle().await;
+    let mut queue_lock = queue.lock().await;
+    queue_lock.shuffle();
     utils::react_ok(ctx, msg).await;
 
     Ok(())
@@ -590,7 +605,8 @@ async fn repeat(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     let guild_id = msg.guild_id.unwrap();
     let queue = Queue::get(ctx, guild_id).await;
-    queue.set_loop_mode(mode).await;
+    let mut queue_lock = queue.lock().await;
+    queue_lock.set_loop_mode(mode);
     react_ok(ctx, msg).await;
 
     Ok(())

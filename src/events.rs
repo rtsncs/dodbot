@@ -17,7 +17,7 @@ use tracing::{error, info};
 
 pub struct Handler;
 pub struct LavalinkHandler {
-    pub guilds: Arc<Mutex<HashMap<GuildId, Arc<Guild>>>>,
+    pub guilds: Arc<Mutex<HashMap<GuildId, Arc<Mutex<Guild>>>>>,
     pub http: Http,
 }
 
@@ -38,7 +38,7 @@ impl EventHandler for Handler {
                 _ => continue,
             };
 
-            guilds_lock.insert(guild_id, Guild::new(guild_id));
+            guilds_lock.insert(guild_id, Guild::new(guild_id, &ctx).await);
         }
     }
 
@@ -106,8 +106,9 @@ impl EventHandler for Handler {
             }
         } else {
             let queue = Queue::get(&ctx, guild_id.unwrap()).await;
-            queue.clear().await;
-            queue.set_loop_mode(LoopModes::None).await;
+            let mut queue_lock = queue.lock().await;
+            queue_lock.clear();
+            queue_lock.set_loop_mode(LoopModes::None);
             let data = ctx.data.read().await;
             let lava = data.get::<Lavalink>().unwrap();
             let _err = lava.destroy(guild_id.unwrap()).await;
@@ -123,10 +124,12 @@ impl LavalinkEventHandler for LavalinkHandler {
     async fn track_finish(&self, lava: LavalinkClient, event: TrackFinish) {
         info!("Track finished in guild {}", event.guild_id);
         let guild_id = GuildId(event.guild_id);
-        let guilds = self.guilds.lock().await;
-        let guild = guilds.get(&guild_id).unwrap();
-        let queue = guild.queue.clone();
+        let guilds_lock = self.guilds.lock().await;
+        let guild = guilds_lock.get(&guild_id).unwrap();
+        let guild_lock = guild.lock().await;
+        let queue = guild_lock.queue.clone();
+        let mut queue_lock = queue.lock().await;
 
-        queue.play_next(lava, &self.http).await;
+        queue_lock.play_next(lava, &self.http).await;
     }
 }
