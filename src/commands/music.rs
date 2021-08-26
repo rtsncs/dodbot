@@ -67,8 +67,7 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
     if has_handler {
         let queue = Queue::get(ctx, guild_id).await;
         let mut queue_lock = queue.lock().await;
-        queue_lock.clear();
-        queue_lock.set_loop_mode(LoopModes::None);
+        queue_lock.clean_up();
 
         let data = ctx.data.read().await;
         let lava = data.get::<crate::Lavalink>().unwrap().clone();
@@ -292,7 +291,7 @@ async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             for (i, track) in query_result.tracks.iter().enumerate() {
                 let info = track.info.as_ref().unwrap();
                 let title = info.title.clone();
-                let length = info.length;
+                let length = info.length / 1000;
 
                 results += &format!(
                     "{}. {} [{}]\n",
@@ -380,28 +379,35 @@ async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
 
 #[command]
 #[aliases(q, list, ls)]
-async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
+async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let mut page = args.parse::<usize>().unwrap_or(1);
+    if page == 0 {
+        page = 1;
+    }
     let guild_id = msg.guild_id.unwrap();
 
     let queue = Queue::get(ctx, guild_id).await;
     let queue_lock = queue.lock().await;
-    let tracks = queue_lock.tracklist();
 
-    if tracks.is_empty() {
-        msg.reply(ctx, "The queue is empty.").await?;
-    } else {
-        let mut tracklist = String::new();
+    msg.reply(ctx, queue_lock.tracklist(page - 1)).await?;
+    Ok(())
+}
 
-        for (i, track) in tracks.iter().enumerate() {
-            let title = &track.title;
-            let duration = utils::length_to_string(track.length.as_secs());
-            let requester = track.requester.0;
-
-            tracklist += &format!("{}. {} ({}) - <@{}>\n", i + 1, title, duration, requester);
-        }
-
-        msg.reply(ctx, tracklist).await?;
+#[command]
+#[aliases(mq)]
+async fn myqueue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let mut page = args.parse::<usize>().unwrap_or(1);
+    if page == 0 {
+        page = 1;
     }
+    let guild_id = msg.guild_id.unwrap();
+
+    let queue = Queue::get(ctx, guild_id).await;
+    let queue_lock = queue.lock().await;
+
+    msg.reply(ctx, queue_lock.user_tracklist(msg.author.id, page - 1))
+        .await?;
+
     Ok(())
 }
 
@@ -412,7 +418,7 @@ async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
 
     let queue = Queue::get(ctx, guild_id).await;
     let mut queue_lock = queue.lock().await;
-    queue_lock.clear();
+    queue_lock.clear(msg.author.id);
     utils::react_ok(ctx, msg).await;
 
     Ok(())
@@ -444,7 +450,7 @@ async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     let queue = Queue::get(ctx, guild_id).await;
     let mut queue_lock = queue.lock().await;
-    let reply = match queue_lock.remove(index - 1) {
+    let reply = match queue_lock.remove(index - 1, msg.author.id) {
         Some(track) => {
             format!("{} has been removed from the queue", &track.title)
         }
@@ -465,7 +471,7 @@ async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     let queue = Queue::get(ctx, guild_id).await;
     let mut queue_lock = queue.lock().await;
-    let reply = match queue_lock.move_track(from - 1, to - 1) {
+    let reply = match queue_lock.move_track(from - 1, to - 1, msg.author.id) {
         Some(track) => {
             format!("{} has been moved to position {}", &track.title, to)
         }
@@ -485,7 +491,7 @@ async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     let queue = Queue::get(ctx, guild_id).await;
     let mut queue_lock = queue.lock().await;
-    let reply = match queue_lock.swap(first - 1, second - 1) {
+    let reply = match queue_lock.swap(first - 1, second - 1, msg.author.id) {
         Some((first, second)) => {
             format!("{} and {} have been swapped", &first.title, &second.title,)
         }
@@ -520,7 +526,7 @@ async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
     let queue = Queue::get(ctx, guild_id).await;
     let mut queue_lock = queue.lock().await;
-    queue_lock.shuffle();
+    queue_lock.shuffle(msg.author.id);
     utils::react_ok(ctx, msg).await;
 
     Ok(())
@@ -606,7 +612,7 @@ async fn repeat(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
     let queue = Queue::get(ctx, guild_id).await;
     let mut queue_lock = queue.lock().await;
-    queue_lock.set_loop_mode(mode);
+    queue_lock.set_loop_mode(mode, msg.author.id);
     react_ok(ctx, msg).await;
 
     Ok(())

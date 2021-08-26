@@ -1,5 +1,5 @@
 use crate::guild::Guild;
-use crate::music::queue::{LoopModes, Queue};
+use crate::music::queue::Queue;
 use crate::shared_data::*;
 use lavalink_rs::{
     gateway::LavalinkEventHandler,
@@ -107,8 +107,7 @@ impl EventHandler for Handler {
         } else {
             let queue = Queue::get(&ctx, guild_id.unwrap()).await;
             let mut queue_lock = queue.lock().await;
-            queue_lock.clear();
-            queue_lock.set_loop_mode(LoopModes::None);
+            queue_lock.clean_up();
             let data = ctx.data.read().await;
             let lava = data.get::<Lavalink>().unwrap();
             let _err = lava.destroy(guild_id.unwrap()).await;
