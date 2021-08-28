@@ -1,0 +1,55 @@
+{
+  "db": "PostgreSQL",
+  "49c63f32e2ac29210a19328e3b0c7851ed9aa69bb29473f321606715ffd1f46a": {
+    "query": "INSERT INTO guilds (guild_id, prefix)\n        VALUES ($1, $2)\n        ON CONFLICT (guild_id) DO UPDATE\n            SET prefix = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "a26c50e05de66a3a8f628dbcf92d650732c37cd45eed17747e565305091b8b9a": {
+    "query": "INSERT INTO guilds (guild_id, round_robin)\n        VALUES ($1, $2)\n        ON CONFLICT (guild_id) DO UPDATE\n            SET round_robin = $2\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bool"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "a4c7b78240dd60daa2f6674947ac808d329e7d3c9a0bf1b9fb5e818e5415be43": {
+    "query": "SELECT prefix, round_robin FROM guilds WHERE guild_id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "prefix",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "round_robin",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        true,
+        false
+      ]
+    }
+  }
+}

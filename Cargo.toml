@@ -25,7 +25,7 @@ features = ["rustls", "serenity"]
 
 [dependencies.sqlx]
 version = "0.5"
-features = ["runtime-tokio-rustls", "postgres"]
+features = ["runtime-tokio-rustls", "offline", "postgres"]
 
 [dependencies.rspotify]
 git = "https://github.com/ramsayleung/rspotify"
@@ -37,6 +37,7 @@ regex = "1.5"
 tracing = "0.1"
 tracing-subscriber = "0.2"
 tracing-appender = "0.1"
+indexmap = "=1.6.2"
 
 [profile.release]
 opt-level = 3
