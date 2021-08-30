@@ -101,7 +101,7 @@ pub struct Queue {
     loop_mode: LoopModes,
     skipped: bool,
     tracks: VecDeque<QueuedTrack>,
-    current_track: Option<QueuedTrack>,
+    pub current_track: Option<QueuedTrack>,
     round_robin: bool,
     users: VecDeque<UserId>,
     user_queues: HashMap<UserId, UserQueue>,
@@ -197,8 +197,9 @@ impl Queue {
         Ok(())
     }
 
-    pub fn tracklist(&self, mut page: usize) -> String {
+    pub fn tracklist(&self, mut page: usize) -> (String, Option<(usize, usize, Duration)>) {
         let mut tracklist = String::new();
+        let mut info = None;
         if self.round_robin {
             if self.users.is_empty() {
                 tracklist += "The queue is empty.";
@@ -211,6 +212,7 @@ impl Queue {
                 if page > page_count - 1 {
                     page = page_count - 1;
                 }
+                let mut length = Duration::new(0, 0);
 
                 let mut users = self.users.clone();
                 let cur_user = users.pop_front().unwrap();
@@ -219,12 +221,12 @@ impl Queue {
                 let mut track_num = 1;
                 let mut user_index = 0;
                 let mut user_tracks = vec![0; users.len()];
-                while track_num <= page * 20 + 20 && track_num <= len {
+                while track_num <= len {
                     let user = users[user_index];
                     let queue = self.user_queues.get(&user).unwrap();
                     if user_tracks[user_index] < queue.tracks.len() {
-                        if track_num > page * 20 {
-                            let track = &queue.tracks[user_tracks[user_index]];
+                        let track = &queue.tracks[user_tracks[user_index]];
+                        if track_num > page * 20 && track_num <= page * 20 + 20 {
                             let title = &track.title;
                             let duration =
                                 crate::music::utils::length_to_string(track.length.as_secs());
@@ -235,6 +237,7 @@ impl Queue {
                                 track_num, title, duration, requester
                             );
                         }
+                        length += track.length;
                         track_num += 1;
                         user_tracks[user_index] += 1;
                     }
@@ -243,6 +246,7 @@ impl Queue {
                         user_index = 0;
                     }
                 }
+                info = Some((page, page_count, length));
             }
         } else if self.tracks.is_empty() {
             tracklist += "The queue is empty.";
@@ -251,24 +255,29 @@ impl Queue {
             if page > page_count - 1 {
                 page = page_count - 1;
             }
+            let mut length = Duration::new(0, 0);
             for (i, track) in self.tracks.iter().enumerate() {
-                if i < page * 20 {
-                    continue;
+                length += track.length;
+                if i >= page * 20 && i < page * 20 + 20 {
+                    let title = &track.title;
+                    let duration = crate::music::utils::length_to_string(track.length.as_secs());
+                    let requester = track.requester.0;
+                    tracklist +=
+                        &format!("{}. {} ({}) - <@{}>\n", i + 1, title, duration, requester);
                 }
-                if i > page * 20 + 20 {
-                    break;
-                }
-                let title = &track.title;
-                let duration = crate::music::utils::length_to_string(track.length.as_secs());
-                let requester = track.requester.0;
-                tracklist += &format!("{}. {} ({}) - <@{}>\n", i + 1, title, duration, requester);
             }
+            info = Some((page, page_count, length));
         }
-        tracklist
+        (tracklist, info)
     }
 
-    pub fn user_tracklist(&self, user: UserId, mut page: usize) -> String {
+    pub fn user_tracklist(
+        &self,
+        user: UserId,
+        mut page: usize,
+    ) -> (String, Option<(usize, usize, Duration)>) {
         let mut tracklist = String::new();
+        let mut info = None;
         if !self.round_robin {
             tracklist += "Round robin is disabled on this server.";
         } else if let Some(queue) = self.user_queues.get(&user) {
@@ -276,21 +285,20 @@ impl Queue {
             if page > page_count - 1 {
                 page = page_count - 1;
             }
+            let mut length = Duration::new(0, 0);
             for (i, track) in queue.tracks.iter().enumerate() {
-                if i < page * 20 {
-                    continue;
+                length += track.length;
+                if i >= page * 20 && i < page * 20 + 20 {
+                    let title = &track.title;
+                    let duration = crate::music::utils::length_to_string(track.length.as_secs());
+                    tracklist += &format!("{}. {} ({})\n", i + 1, title, duration);
                 }
-                if i > page * 20 + 20 {
-                    break;
-                }
-                let title = &track.title;
-                let duration = crate::music::utils::length_to_string(track.length.as_secs());
-                tracklist += &format!("{}. {} ({})\n", i + 1, title, duration);
             }
+            info = Some((page, page_count, length));
         } else {
             tracklist += "Your queue is empty.";
         }
-        tracklist
+        (tracklist, info)
     }
 
     pub fn clear(&mut self, user: UserId) {

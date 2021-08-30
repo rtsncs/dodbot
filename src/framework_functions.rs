@@ -3,35 +3,37 @@ use serenity::{
     framework::standard::{macros::hook, CommandResult, DispatchError},
     model::prelude::*,
     prelude::*,
+    utils::Color,
 };
 use tracing::{info, log::error};
 
 #[hook]
 pub async fn on_dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
-    match error {
+    let why = match error {
         DispatchError::LackingPermissions(perm) => {
-            let _err = msg
-                .reply(
-                    ctx,
-                    format!("This command requires {} permission(s).", perm),
-                )
-                .await;
+            format!("This command requires {} permission(s).", perm)
         }
         DispatchError::NotEnoughArguments { min, given: _ } => {
             if min == 1 {
-                let _err = msg.reply(ctx, "This command requires an argument.").await;
+                "This command requires an argument.".to_string()
             } else {
-                let _err = msg
-                    .reply(
-                        ctx,
-                        format!("This command requires atleast {} arguments.", min),
-                    )
-                    .await;
+                format!("This command requires atleast {} arguments.", min)
             }
         }
         _ => {
             error!("Unhandled dispatch error: {:?}", error);
+            return;
         }
+    };
+    if msg
+        .channel_id
+        .send_message(ctx, |m| {
+            m.embed(|e| e.title("Error").description(why).color(Color::RED))
+        })
+        .await
+        .is_err()
+    {
+        error!("Error sending message in channel {}", msg.channel_id);
     }
 }
 
@@ -55,7 +57,14 @@ pub async fn after(ctx: &Context, msg: &Message, cmd_name: &str, res: CommandRes
         error!("Error while running {} command", cmd_name);
         error!("{:?}", why);
 
-        if msg.reply(ctx, why).await.is_err() {
+        if msg
+            .channel_id
+            .send_message(ctx, |m| {
+                m.embed(|e| e.title("Error").description(why).color(Color::RED))
+            })
+            .await
+            .is_err()
+        {
             error!("Error sending message in channel {}", msg.channel_id);
         }
     }

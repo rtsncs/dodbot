@@ -34,8 +34,7 @@ async fn setprefix(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             "Error updating guild prefix in guild {}: {:?}",
             guild_name, why
         );
-        msg.reply(ctx, "There was an error executing this command.")
-            .await?;
+        msg.react(ctx, '❌').await?;
     } else {
         info!("Prefix updated in guild {}", guild_name);
         msg.react(ctx, '✅').await?;
@@ -80,8 +79,7 @@ async fn roundrobin(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             "Error updating round robin setting in guild {}: {:?}",
             guild_name, why
         );
-        msg.reply(ctx, "There was an error executing this command.")
-            .await?;
+        msg.react(ctx, '❌').await?;
     } else {
         info!("Round robin setting updated in guild {}", guild_name);
         msg.react(ctx, '✅').await?;

@@ -15,6 +15,7 @@ use tracing::error;
 pub async fn voice_check(
     ctx: &Context,
     msg: &Message,
+    should_join: bool,
 ) -> Result<(LavalinkClient, Arc<Mutex<Queue>>), String> {
     let guild = msg.guild(&ctx.cache).await.unwrap();
     let guild_id = guild.id;
@@ -30,19 +31,21 @@ pub async fn voice_check(
             .get(&ctx.http.get_current_user().await.unwrap().id)
             .and_then(|voice_state| voice_state.channel_id);
 
-        match bot_channel_id {
-            Some(bot_channel_id) => {
-                if bot_channel_id == user_channel_id {
-                    let data = ctx.data.read().await;
-                    let lava = data.get::<Lavalink>().unwrap().clone();
+        if let Some(bot_channel_id) = bot_channel_id {
+            if bot_channel_id == user_channel_id {
+                let data = ctx.data.read().await;
+                let lava = data.get::<Lavalink>().unwrap().clone();
 
-                    let queue = Queue::get(ctx, guild_id).await;
-                    Ok((lava, queue))
-                } else {
-                    Err("You must be in the same voice channel to use this command".to_string())
-                }
+                let queue = Queue::get(ctx, guild_id).await;
+                Ok((lava, queue))
+            } else {
+                Err("You must be in the same voice channel to use this command".to_string())
             }
-            None => return join(ctx, guild_id, user_channel_id, msg.channel_id).await,
+        } else {
+            if should_join {
+                return join(ctx, guild_id, user_channel_id, msg.channel_id).await;
+            }
+            Err("Not in a voice channel".to_string())
         }
     } else {
         Err("You must in a voice channel to use this command.".to_string())
