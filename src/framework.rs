@@ -1,4 +1,4 @@
-use crate::commands::{admin::*, music::*};
+use crate::commands::{admin::*, general::*, music::*};
 use serenity::framework::standard::macros::group;
 
 #[group]
@@ -14,3 +14,8 @@ pub struct Music;
 #[commands(setprefix, roundrobin)]
 #[required_permissions(ADMINISTRATOR)]
 pub struct Admin;
+
+#[group]
+#[only_in(guilds)]
+#[commands(ping)]
+pub struct General;

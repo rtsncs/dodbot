@@ -84,7 +84,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .before(before)
         .after(after)
         .group(&MUSIC_GROUP)
-        .group(&ADMIN_GROUP);
+        .group(&ADMIN_GROUP)
+        .group(&GENERAL_GROUP);
 
     let mut client = Client::builder(token)
         .event_handler(Handler)
@@ -125,6 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         data.insert::<Guilds>(guilds);
         data.insert::<Lavalink>(lava_client);
         data.insert::<Spotify>(spotify_client);
+        data.insert::<ShardManagerContainer>(client.shard_manager.clone());
     }
 
     let shard_manager = client.shard_manager.clone();
