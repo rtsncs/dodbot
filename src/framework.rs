@@ -17,5 +17,5 @@ pub struct Admin;
 
 #[group]
 #[only_in(guilds)]
-#[commands(ping)]
+#[commands(ping, minecraft)]
 pub struct General;

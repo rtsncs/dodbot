@@ -1,8 +1,9 @@
 use crate::shared_data::ShardManagerContainer;
+use async_minecraft_ping::ConnectionConfig;
 use serde_json::json;
 use serenity::{
     client::bridge::gateway::ShardId,
-    framework::standard::{macros::command, CommandResult},
+    framework::standard::{macros::command, Args, CommandResult},
     model::channel::Message,
     prelude::*,
 };
@@ -46,6 +47,33 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
                 e.description(format!(
                     "Gateway: {}\nREST GET: {}ms\nREST POST: {}ms",
                     shard_latency, get_latency, post_latency
+                ))
+            })
+        })
+        .await?;
+
+    Ok(())
+}
+
+#[command]
+#[min_args(1)]
+async fn minecraft(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let address: Vec<&str> = args.message().split(':').collect();
+
+    let config = ConnectionConfig::build(address[0])
+        .with_port(address.get(1).unwrap_or(&"25565").parse().unwrap_or(25565));
+
+    let mut connection = config.connect().await?;
+    let status = connection.status().await?;
+
+    //TODO: favicon
+
+    msg.channel_id
+        .send_message(ctx, |m| {
+            m.embed(|e| {
+                e.title(address[0]).description(format!(
+                    "Players online: {}/{}",
+                    status.players.online, status.players.max
                 ))
             })
         })
