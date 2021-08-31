@@ -2,6 +2,7 @@ use crate::shared_data::ShardManagerContainer;
 use async_minecraft_ping::ConnectionConfig;
 use serde_json::json;
 use serenity::{
+    builder::CreateEmbed,
     client::bridge::gateway::ShardId,
     framework::standard::{macros::command, Args, CommandResult},
     model::channel::Message,
@@ -59,25 +60,45 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
 #[min_args(1)]
 async fn minecraft(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let address: Vec<&str> = args.message().split(':').collect();
+    let port = match address.get(1) {
+        Some(port) => port.parse().unwrap_or(25565),
+        None => 25565,
+    };
 
-    let config = ConnectionConfig::build(address[0])
-        .with_port(address.get(1).unwrap_or(&"25565").parse().unwrap_or(25565));
-
+    let config = ConnectionConfig::build(address[0]).with_port(port);
     let mut connection = config.connect().await?;
     let status = connection.status().await?;
 
-    //TODO: favicon
+    let motd = match status.description {
+        async_minecraft_ping::ServerDescription::Plain(motd) => motd,
+        async_minecraft_ping::ServerDescription::Object { text } => text,
+    };
 
-    msg.channel_id
-        .send_message(ctx, |m| {
-            m.embed(|e| {
-                e.title(address[0]).description(format!(
-                    "Players online: {}/{}",
-                    status.players.online, status.players.max
-                ))
-            })
-        })
-        .await?;
+    let mut embed = CreateEmbed::default();
+    embed.title(address[0]).description(format!(
+        "{}\nPlayers online: {}/{}",
+        motd, status.players.online, status.players.max
+    ));
+
+    if let Some(icon_base64) = &status.favicon {
+        let icon_base64 = &icon_base64[22..].replace('\n', "");
+        if let Ok(icon) = base64::decode(icon_base64) {
+            let path = format!(
+                "mc_icon_{}.png",
+                args.message().replace('.', "").replace(':', "")
+            );
+            std::fs::write(&path, icon)?;
+            embed.thumbnail(format!("attachment://{}", &path));
+            msg.channel_id
+                .send_files(ctx, vec![&path[..]], |m| m.set_embed(embed))
+                .await?;
+            let _err = std::fs::remove_file(path);
+        }
+    } else {
+        msg.channel_id
+            .send_message(ctx, |m| m.set_embed(embed))
+            .await?;
+    }
 
     Ok(())
 }
