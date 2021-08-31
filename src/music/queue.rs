@@ -496,11 +496,21 @@ impl Queue {
                 error!("Error playing track");
             }
         }
-        if let Some(title) = title {
-            if let Some(channel) = self.channel_id {
-                if let Err(why) = channel.say(http, format!("Now playing: {}", title)).await {
+        if let Some(channel) = self.channel_id {
+            if let Some(title) = title {
+                if let Err(why) = channel
+                    .send_message(http, |m| {
+                        m.embed(|e| e.title("Now playing").description(title))
+                    })
+                    .await
+                {
                     error!("Error sending message: {:?}", why);
                 }
+            } else if let Err(why) = channel
+                .send_message(http, |m| m.embed(|e| e.description("The queue has ended")))
+                .await
+            {
+                error!("Error sending message: {:?}", why);
             }
         }
         self.skipped = false;

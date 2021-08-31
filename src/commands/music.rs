@@ -366,13 +366,21 @@ async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
             let requester_id = queue_lock.current_track.clone().unwrap().requester;
             let requester = ctx.cache.member(guild_id, requester_id).await;
 
+            let bar1 = ((info.position as f32 / info.length as f32) * 19.) as usize;
+            let bar2 = 19 - bar1;
+            let progress_bar = "▬".repeat(bar1) + "🔘" + &"▬".repeat(bar2);
+
             embed
-                .title(format!("{} ({}/{})", title, pos, duration))
+                .title(title)
                 .thumbnail(format!(
                     "https://i.ytimg.com/vi/{}/hqdefault.jpg",
                     info.identifier
                 ))
                 .url(info.uri.clone())
+                .description(format!(
+                    "{}\n{}\n{}/{}",
+                    info.author, progress_bar, pos, duration
+                ))
                 .footer(|f| {
                     if let Some(requester) = requester {
                         if let Some(avatar) = requester.user.avatar_url() {
