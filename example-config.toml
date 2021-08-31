@@ -2,3 +2,6 @@ token = ""
 db_string = "postgres://postgres:password@localhost/dodbot"
 spotify_id = ""
 spotify_secret = ""
+lava_address = "127.0.0.1"
+lava_port = 2333
+lava_password = "youshallnotpass"

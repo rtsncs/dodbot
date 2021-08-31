@@ -105,13 +105,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let guilds = Arc::new(Mutex::new(HashMap::default()));
 
     let lava_client = LavalinkClient::builder(bot_id)
-        .set_host("127.0.0.1")
-        .set_password("youshallnotpass".to_string())
+        .set_host(config["lava_address"].as_str().unwrap().to_string())
+        .set_port(config["lava_port"].as_integer().unwrap() as u16)
+        .set_password(config["lava_password"].as_str().unwrap().to_string())
         .build(LavalinkHandler {
             guilds: guilds.clone(),
             http,
         })
         .await?;
+    info!("Connected to lavalink");
 
     let spotify_creds = Credentials {
         id: config["spotify_id"].as_str().unwrap().to_string(),
