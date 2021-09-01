@@ -415,12 +415,14 @@ async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let (tracklist, info) = queue_lock.tracklist(page - 1);
     let mut embed = CreateEmbed::default();
     embed.title("Queue").description(tracklist);
-    if let Some((page, page_count, length)) = info {
+    if let Some((page, page_count, track_count, length)) = info {
         embed.footer(|f| {
             f.text(format!(
-                "Page {}/{} | Total queue length: {}",
+                "Page {}/{} | Total queue length: {} {} ({})",
                 page + 1,
                 page_count,
+                track_count,
+                if track_count == 1 { "track" } else { "tracks" },
                 utils::length_to_string(length.as_secs())
             ))
         });
@@ -447,12 +449,14 @@ async fn myqueue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let (tracklist, info) = queue_lock.user_tracklist(msg.author.id, page - 1);
     let mut embed = CreateEmbed::default();
     embed.title("Queue").description(tracklist);
-    if let Some((page, page_count, length)) = info {
+    if let Some((page, page_count, track_count, length)) = info {
         embed.footer(|f| {
             f.text(format!(
-                "Page {}/{} | Total queue length: {}",
+                "Page {}/{} | Total queue length: {} {} ({})",
                 page + 1,
                 page_count,
+                track_count,
+                if track_count == 1 { "track" } else { "tracks" },
                 utils::length_to_string(length.as_secs())
             ))
         });

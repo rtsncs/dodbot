@@ -197,7 +197,7 @@ impl Queue {
         Ok(())
     }
 
-    pub fn tracklist(&self, mut page: usize) -> (String, Option<(usize, usize, Duration)>) {
+    pub fn tracklist(&self, mut page: usize) -> (String, Option<(usize, usize, usize, Duration)>) {
         let mut tracklist = String::new();
         let mut info = None;
         if self.round_robin {
@@ -246,7 +246,7 @@ impl Queue {
                         user_index = 0;
                     }
                 }
-                info = Some((page, page_count, length));
+                info = Some((page, page_count, track_num - 1, length));
             }
         } else if self.tracks.is_empty() {
             tracklist += "The queue is empty.";
@@ -266,7 +266,7 @@ impl Queue {
                         &format!("{}. {} ({}) - <@{}>\n", i + 1, title, duration, requester);
                 }
             }
-            info = Some((page, page_count, length));
+            info = Some((page, page_count, self.tracks.len(), length));
         }
         (tracklist, info)
     }
@@ -275,7 +275,7 @@ impl Queue {
         &self,
         user: UserId,
         mut page: usize,
-    ) -> (String, Option<(usize, usize, Duration)>) {
+    ) -> (String, Option<(usize, usize, usize, Duration)>) {
         let mut tracklist = String::new();
         let mut info = None;
         if !self.round_robin {
@@ -294,7 +294,7 @@ impl Queue {
                     tracklist += &format!("{}. {} ({})\n", i + 1, title, duration);
                 }
             }
-            info = Some((page, page_count, length));
+            info = Some((page, page_count, queue.tracks.len(), length));
         } else {
             tracklist += "Your queue is empty.";
         }
