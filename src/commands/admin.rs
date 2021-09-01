@@ -1,7 +1,7 @@
 use crate::{guild::Guild, music::queue::Queue, shared_data::Database};
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
-    model::channel::Message,
+    model::{channel::Message, prelude::ChannelType::Voice},
     prelude::*,
 };
 use tracing::{error, info};
@@ -85,5 +85,63 @@ async fn roundrobin(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         msg.react(ctx, '✅').await?;
     }
 
+    Ok(())
+}
+
+#[command]
+#[min_args(2)]
+async fn minecraftchannel(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+    let guild = ctx.cache.guild(guild_id).await.unwrap();
+    let address = args.parse::<String>()?;
+    let ip: Vec<&str> = address.split(':').collect();
+    let port = match ip.get(1) {
+        Some(port) => port.parse().unwrap_or(25565),
+        None => 25565,
+    };
+    let name = args.advance().remains().unwrap().to_string();
+
+    let config = async_minecraft_ping::ConnectionConfig::build(ip[0]).with_port(port);
+    let mut connection = config.connect().await?;
+    let status = connection.status().await?;
+
+    let data = ctx.data.read().await;
+    let db = data.get::<Database>().unwrap();
+
+    let channel = guild
+        .create_channel(ctx, |c| {
+            c.kind(Voice).name(name.replace(
+                '$',
+                &format!("{}/{}", status.players.online, status.players.max),
+            ))
+        })
+        .await?;
+    let channel_id = channel.id.0 as i64;
+
+    if let Err(why) = sqlx::query!(
+        "INSERT INTO guilds (guild_id, mc_addresses, mc_channels, mc_names)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (guild_id) DO UPDATE
+            SET mc_addresses = guilds.mc_addresses || $2,
+                mc_channels = guilds.mc_channels || $3,
+                mc_names = guilds.mc_names || $4",
+        guild_id.0 as i64,
+        &vec![address],
+        &vec![channel_id],
+        &vec![name],
+    )
+    .execute(db)
+    .await
+    {
+        error!(
+            "Error updating minecraft settings in guild {}: {:?}",
+            msg.guild_id.unwrap().0,
+            why
+        );
+        msg.react(ctx, '❌').await?;
+        return Ok(());
+    }
+
+    msg.react(ctx, '✅').await?;
     Ok(())
 }

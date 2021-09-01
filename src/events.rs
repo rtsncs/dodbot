@@ -12,7 +12,7 @@ use serenity::{
     model::{guild::GuildStatus, id::GuildId},
     prelude::*,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tracing::{error, info};
 
 pub struct Handler;
@@ -26,20 +26,30 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: serenity::model::prelude::Ready) {
         info!("{} connected", ready.user.name);
 
-        let data = ctx.data.read().await;
-        let guilds = data.get::<Guilds>().expect("Guilds missing");
-        let mut guilds_lock = guilds.lock().await;
+        {
+            let data = ctx.data.read().await;
+            let guilds = data.get::<Guilds>().expect("Guilds missing");
+            let mut guilds_lock = guilds.lock().await;
 
-        for guild in ready.guilds {
-            let guild_id = match guild {
-                GuildStatus::OnlineGuild(g) => g.id,
-                GuildStatus::OnlinePartialGuild(g) => g.id,
-                GuildStatus::Offline(g) => g.id,
-                _ => continue,
-            };
+            for guild in ready.guilds {
+                let guild_id = match guild {
+                    GuildStatus::OnlineGuild(g) => g.id,
+                    GuildStatus::OnlinePartialGuild(g) => g.id,
+                    GuildStatus::Offline(g) => g.id,
+                    _ => continue,
+                };
 
-            guilds_lock.insert(guild_id, Guild::new(guild_id, &ctx).await);
+                guilds_lock.insert(guild_id, Guild::new(guild_id, &ctx).await);
+            }
         }
+
+        let ctx = Arc::new(ctx);
+        tokio::spawn(async move {
+            loop {
+                update_mc_channels(Arc::clone(&ctx)).await;
+                tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+            }
+        });
     }
 
     async fn voice_state_update(
@@ -130,5 +140,72 @@ impl LavalinkEventHandler for LavalinkHandler {
         let mut queue_lock = queue.lock().await;
 
         queue_lock.play_next(lava, &self.http).await;
+    }
+}
+
+async fn update_mc_channels(ctx: Arc<Context>) {
+    info!("Starting MC channels update");
+    let data = ctx.data.read().await;
+    let db = data.get::<Database>().unwrap();
+
+    match sqlx::query!("SELECT guild_id, mc_addresses, mc_channels, mc_names FROM guilds")
+        .fetch_all(db)
+        .await
+    {
+        Ok(rows) => {
+            for record in rows {
+                for (i, channel_id) in record.mc_channels.iter().enumerate() {
+                    if let Some(mut channel) = ctx.cache.guild_channel(*channel_id as u64).await {
+                        let address = &record.mc_addresses[i];
+                        let name = &record.mc_names[i];
+
+                        let ip: Vec<&str> = address.split(':').collect();
+                        let port = match ip.get(1) {
+                            Some(port) => port.parse().unwrap_or(25565),
+                            None => 25565,
+                        };
+
+                        let config =
+                            async_minecraft_ping::ConnectionConfig::build(ip[0]).with_port(port);
+                        if let Ok(mut connection) = config.connect().await {
+                            if let Ok(status) = connection.status().await {
+                                if let Err(why) = channel
+                                    .edit(&*ctx, |c| {
+                                        c.name(name.replace(
+                                            '$',
+                                            &format!(
+                                                "{}/{}",
+                                                status.players.online, status.players.max
+                                            ),
+                                        ))
+                                    })
+                                    .await
+                                {
+                                    error!(
+                                        "Error updating MC channel {} in guild {}: {}",
+                                        address, record.guild_id, why
+                                    );
+                                }
+                            } else {
+                                error!("Error getting status from {}", address);
+                            }
+                        } else {
+                            error!("Error connecting to {}", address);
+                            if let Err(why) = channel
+                                .edit(&*ctx, |c| c.name(name.replace('$', "offline")))
+                                .await
+                            {
+                                error!(
+                                    "Error updating MC channel {} in guild {}: {}",
+                                    address, record.guild_id, why
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            info!("MC channels updated");
+        }
+        Err(why) => error!("Error fetching mc settings for all guilds: {}", why),
     }
 }

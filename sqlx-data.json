@@ -13,6 +13,21 @@
       "nullable": []
     }
   },
+  "6b3e21a9d3bab1cf5ebd492b70553ddffb8f8489ce5ac861e86b95f4899278c0": {
+    "query": "INSERT INTO guilds (guild_id, mc_addresses, mc_channels, mc_names)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (guild_id) DO UPDATE\n            SET mc_addresses = guilds.mc_addresses || $2,\n                mc_channels = guilds.mc_channels || $3,\n                mc_names = guilds.mc_names || $4",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "TextArray",
+          "Int8Array",
+          "TextArray"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "a26c50e05de66a3a8f628dbcf92d650732c37cd45eed17747e565305091b8b9a": {
     "query": "INSERT INTO guilds (guild_id, round_robin)\n        VALUES ($1, $2)\n        ON CONFLICT (guild_id) DO UPDATE\n            SET round_robin = $2\n        ",
     "describe": {
@@ -48,6 +63,42 @@
       },
       "nullable": [
         true,
+        false
+      ]
+    }
+  },
+  "f7023a0eec49ef0688ea5cb5ce1a832caecf2a0ef6ae04ad61082346236fd484": {
+    "query": "SELECT guild_id, mc_addresses, mc_channels, mc_names FROM guilds",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "guild_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "mc_addresses",
+          "type_info": "TextArray"
+        },
+        {
+          "ordinal": 2,
+          "name": "mc_channels",
+          "type_info": "Int8Array"
+        },
+        {
+          "ordinal": 3,
+          "name": "mc_names",
+          "type_info": "TextArray"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
         false
       ]
     }
