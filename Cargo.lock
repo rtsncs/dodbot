@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "rspotify"
 version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+source = "git+https://github.com/ramsayleung/rspotify#3d6f50a7170e7ece872b8f93d15be58a9897f7a5"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1468,7 +1468,7 @@ dependencies = [
 [[package]]
 name = "rspotify-http"
 version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+source = "git+https://github.com/ramsayleung/rspotify#3d6f50a7170e7ece872b8f93d15be58a9897f7a5"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
@@ -1485,12 +1485,12 @@ dependencies = [
 [[package]]
 name = "rspotify-macros"
 version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+source = "git+https://github.com/ramsayleung/rspotify#3d6f50a7170e7ece872b8f93d15be58a9897f7a5"
 
 [[package]]
 name = "rspotify-model"
 version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+source = "git+https://github.com/ramsayleung/rspotify#3d6f50a7170e7ece872b8f93d15be58a9897f7a5"
 dependencies = [
  "chrono",
  "serde",
