@@ -7,18 +7,6 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-    name: Formatter
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            components: rustfmt
-            override: true
-
   ci:
     name: CI
     runs-on: ubuntu-latest
