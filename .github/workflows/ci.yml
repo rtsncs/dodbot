@@ -4,9 +4,9 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
 
 jobs:
-  lint:
     name: Formatter
     runs-on: ubuntu-latest
     steps:
@@ -18,24 +18,29 @@ jobs:
             toolchain: stable
             components: rustfmt
             override: true
-      - name: Rustfmt
-        run: cargo +stable fmt --all -- --check
 
-  build:
-    name: Build
+  ci:
+    name: CI
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
+
     - name: Install toolchain
       uses: actions-rs/toolchain@v1
       with:
           toolchain: stable
-          components: clippy
+          profile: minimal
+          components: clippy, rustfmt, rust-src
           override: true
+
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v1
+
+    - name: Rustfmt
+      run: cargo +stable fmt --all -- --check
+
     - name: Clippy
       uses: actions-rs/clippy-check@v1
       with:
           token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Build
-      run: cargo build --verbose
