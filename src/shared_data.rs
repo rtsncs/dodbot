@@ -1,10 +1,10 @@
 use crate::guild::Guild;
+use genius_rs::Genius as GeniusClient;
 use lavalink_rs::LavalinkClient;
 use rspotify::ClientCredsSpotify;
 use serenity::{client::bridge::gateway::ShardManager, model::id::GuildId, prelude::*};
 use sqlx::PgPool;
 use std::{collections::HashMap, sync::Arc};
-use genius_rs::Genius as GeniusClient;
 
 pub struct Guilds;
 impl TypeMapKey for Guilds {
