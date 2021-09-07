@@ -10,7 +10,7 @@ use serenity::{
     prelude::Mutex,
 };
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, log::info};
 
 pub async fn voice_check(
     ctx: &Context,
@@ -105,4 +105,11 @@ pub fn length_to_string(dur: u64) -> String {
     }
     string += &format!("{:>02}:{:>02}", minutes, seconds);
     string
+}
+
+pub async fn refresh_spotify_token(
+    spotify: &mut rspotify::ClientCredsSpotify,
+) -> Result<(), rspotify::ClientError> {
+    info!("Refreshing Spotify token");
+    spotify.request_token().await
 }

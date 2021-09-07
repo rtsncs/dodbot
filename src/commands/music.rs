@@ -102,8 +102,8 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     match utils::voice_check(ctx, msg, true).await {
         Ok((lava, queue)) => {
             if query.contains("open.spotify.com") {
-                let data = ctx.data.read().await;
-                let spotify = data.get::<Spotify>().unwrap();
+                let mut data = ctx.data.write().await;
+                let spotify = data.get_mut::<Spotify>().unwrap();
                 let reg = Regex::new(
                     r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$",
                 )
@@ -117,7 +117,17 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 }
                 let id = &capture[3];
                 let id = SpotifyId::from_id(id)?;
-                let track = spotify.track(id).await?;
+                let track = match spotify.track(id).await {
+                    Ok(track) => track,
+                    Err(why) => {
+                        if let rspotify::ClientError::Http(_) = why {
+                            utils::refresh_spotify_token(spotify).await?;
+                            spotify.track(id).await?
+                        } else {
+                            return Err(why.into());
+                        }
+                    }
+                };
                 query = format!("{} - {}", track.artists[0].name, track.name);
             }
             let query_result = lava.auto_search_tracks(query).await?;
@@ -168,8 +178,8 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     match utils::voice_check(ctx, msg, true).await {
         Ok((lava, queue)) => {
             if query.contains("open.spotify.com") {
-                let data = ctx.data.read().await;
-                let spotify = data.get::<Spotify>().unwrap();
+                let mut data = ctx.data.write().await;
+                let spotify = data.get_mut::<Spotify>().unwrap();
                 let reg = Regex::new(
                     r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$",
                 )
@@ -187,9 +197,22 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     let limit = 50;
                     let id = SpotifyId::from_id(id)?;
                     loop {
-                        let album = spotify
+                        let album = match spotify
                             .album_track_manual(id, Some(limit), Some(offset))
-                            .await?;
+                            .await
+                        {
+                            Ok(album) => album,
+                            Err(why) => {
+                                if let rspotify::ClientError::Http(_) = why {
+                                    utils::refresh_spotify_token(spotify).await?;
+                                    spotify
+                                        .album_track_manual(id, Some(limit), Some(offset))
+                                        .await?
+                                } else {
+                                    return Err(why.into());
+                                }
+                            }
+                        };
 
                         for track in album.items {
                             let title = track.name;
@@ -208,9 +231,28 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     let limit = 100;
                     let id = SpotifyId::from_id(id)?;
                     loop {
-                        let playlist = spotify
+                        let playlist = match spotify
                             .playlist_tracks_manual(id, None, None, Some(limit), Some(offset))
-                            .await?;
+                            .await
+                        {
+                            Ok(playlist) => playlist,
+                            Err(why) => {
+                                if let rspotify::ClientError::Http(_) = why {
+                                    utils::refresh_spotify_token(spotify).await?;
+                                    spotify
+                                        .playlist_tracks_manual(
+                                            id,
+                                            None,
+                                            None,
+                                            Some(limit),
+                                            Some(offset),
+                                        )
+                                        .await?
+                                } else {
+                                    return Err(why.into());
+                                }
+                            }
+                        };
 
                         for item in playlist.items {
                             if let Some(rspotify::model::PlayableItem::Track(track)) = item.track {
