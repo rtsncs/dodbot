@@ -3,7 +3,7 @@ use crate::{
         queue::{LoopModes, Queue, QueuedTrack},
         utils,
     },
-    shared_data::Spotify,
+    shared_data::{Genius, Spotify},
     Lavalink,
 };
 use regex::Regex;
@@ -714,6 +714,35 @@ async fn volume(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         }
         Err(why) => return Err(why.into()),
     }
+
+    Ok(())
+}
+
+#[command]
+#[min_args(1)]
+async fn lyrics(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let title = args.message().to_string();
+    let data = ctx.data.read().await;
+    let genius = data.get::<Genius>().unwrap();
+
+    let response = genius.search(&title).await?;
+    if response.is_empty() {
+        return Err("Lyrics not found".into());
+    }
+    let url = &response[0].result.url;
+    let title = &response[0].result.full_title;
+    let lyrics = genius.get_lyrics(url).await?;
+
+    msg.channel_id
+        .send_message(ctx, |m| {
+            m.embed(|e| {
+                e.author(|a| a.name("Lyrics"))
+                    .title(title)
+                    .url(url)
+                    .description(lyrics.join("\n"))
+            })
+        })
+        .await?;
 
     Ok(())
 }

@@ -4,6 +4,7 @@ use rspotify::ClientCredsSpotify;
 use serenity::{client::bridge::gateway::ShardManager, model::id::GuildId, prelude::*};
 use sqlx::PgPool;
 use std::{collections::HashMap, sync::Arc};
+use genius_rs::Genius as GeniusClient;
 
 pub struct Guilds;
 impl TypeMapKey for Guilds {
@@ -28,4 +29,9 @@ impl TypeMapKey for Spotify {
 pub struct ShardManagerContainer;
 impl TypeMapKey for ShardManagerContainer {
     type Value = Arc<Mutex<ShardManager>>;
+}
+
+pub struct Genius;
+impl TypeMapKey for Genius {
+    type Value = GeniusClient;
 }

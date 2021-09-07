@@ -19,6 +19,7 @@ mod shared_data;
 use events::*;
 use framework::*;
 use framework_functions::*;
+use genius_rs::Genius as GeniusClient;
 use lavalink_rs::LavalinkClient;
 use rspotify::{ClientCredsSpotify, Credentials};
 use serenity::{
@@ -124,6 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut spotify_client = ClientCredsSpotify::new(spotify_creds);
     spotify_client.request_token().await?;
 
+    let genius_client = GeniusClient::new(config["genius_token"].as_str().unwrap().to_string());
+
     {
         let mut data = client.data.write().await;
         data.insert::<Database>(pool);
@@ -131,6 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         data.insert::<Lavalink>(lava_client);
         data.insert::<Spotify>(spotify_client);
         data.insert::<ShardManagerContainer>(client.shard_manager.clone());
+        data.insert::<Genius>(genius_client);
     }
 
     let shard_manager = client.shard_manager.clone();
