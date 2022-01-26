@@ -1,4 +1,3 @@
-#![warn(clippy::pedantic)]
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::cast_possible_wrap)]
 #![allow(clippy::similar_names)]
