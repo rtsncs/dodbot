@@ -81,7 +81,7 @@ pub async fn join(
 
     let data = ctx.data.read().await;
     let lava_client = data.get::<Lavalink>().unwrap().clone();
-    if let Err(why) = lava_client.create_session(&info).await {
+    if let Err(why) = lava_client.create_session_with_songbird(&info).await {
         return Err(why.to_string());
     }
 

@@ -96,9 +96,9 @@ impl EventHandler for Handler {
                 event,
             };
 
-            let mut lava_inner = lava.inner.lock().await;
+            let lava_inner = lava.inner.lock();
             if SendOpcode::VoiceUpdate(payload)
-                .send(guild_id, &mut lava_inner.socket_write)
+                .send(guild_id, lava_inner.socket_write.lock().as_mut().unwrap())
                 .await
                 .is_err()
             {
@@ -127,7 +127,7 @@ impl LavalinkEventHandler for LavalinkHandler {
     }
     async fn track_finish(&self, lava: LavalinkClient, event: TrackFinish) {
         info!("Track finished in guild {}", event.guild_id);
-        let guild_id = GuildId(event.guild_id);
+        let guild_id = GuildId(event.guild_id.0);
         let guilds_lock = self.guilds.lock().await;
         let guild = guilds_lock.get(&guild_id).unwrap();
         let guild_lock = guild.lock().await;

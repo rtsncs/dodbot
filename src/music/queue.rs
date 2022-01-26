@@ -1,6 +1,7 @@
 use crate::guild::Guild;
 use lavalink_rs::{
-    model::{LavalinkResult, Track},
+    error::LavalinkResult,
+    model::Track,
     LavalinkClient,
 };
 use rand::prelude::SliceRandom;
