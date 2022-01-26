@@ -9,7 +9,7 @@ use lavalink_rs::{
 use serenity::{
     async_trait,
     http::Http,
-    model::{guild::GuildStatus, id::GuildId},
+    model::id::GuildId,
     prelude::*,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -32,12 +32,7 @@ impl EventHandler for Handler {
             let mut guilds_lock = guilds.lock().await;
 
             for guild in ready.guilds {
-                let guild_id = match guild {
-                    GuildStatus::OnlineGuild(g) => g.id,
-                    GuildStatus::OnlinePartialGuild(g) => g.id,
-                    GuildStatus::Offline(g) => g.id,
-                    _ => continue,
-                };
+                let guild_id = guild.id();
 
                 guilds_lock.insert(guild_id, Guild::new(guild_id, &ctx).await);
             }
