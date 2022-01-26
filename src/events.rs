@@ -6,12 +6,7 @@ use lavalink_rs::{
     model::{Event, SendOpcode, TrackFinish, TrackStart, VoiceUpdate},
     LavalinkClient,
 };
-use serenity::{
-    async_trait,
-    http::Http,
-    model::id::GuildId,
-    prelude::*,
-};
+use serenity::{async_trait, http::Http, model::id::GuildId, prelude::*};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tracing::{error, info};
 

@@ -1,9 +1,5 @@
 use crate::guild::Guild;
-use lavalink_rs::{
-    error::LavalinkResult,
-    model::Track,
-    LavalinkClient,
-};
+use lavalink_rs::{error::LavalinkResult, model::Track, LavalinkClient};
 use rand::prelude::SliceRandom;
 use serenity::{
     client::Context,
