@@ -45,6 +45,15 @@ checksum = "28ae2b3dec75a406790005a200b1bd89785afc02517a00ca99ecfe093ee9e6cf"
 
 [[package]]
 name = "arrayvec"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd9fd44efafa8690358b7408d253adf110036b88f55672a933f01d616ad9b1b9"
+dependencies = [
+ "nodrop",
+]
+
+[[package]]
+name = "arrayvec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
@@ -116,6 +125,22 @@ name = "async-tungstenite"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07b30ef0ea5c20caaa54baea49514a206308989c68be7ecd86c7f956e4da6378"
+dependencies = [
+ "futures-io",
+ "futures-util",
+ "log",
+ "pin-project-lite",
+ "tokio",
+ "tokio-rustls 0.22.0",
+ "tungstenite 0.13.0",
+ "webpki-roots 0.21.1",
+]
+
+[[package]]
+name = "async-tungstenite"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8645e929ec7964448a901db9da30cd2ae8c7fecf4d6176af427837531dbbb63b"
 dependencies = [
  "futures-io",
  "futures-util",
@@ -432,7 +457,7 @@ dependencies = [
  "rspotify",
  "serde_json",
  "serenity",
- "songbird",
+ "songbird 0.2.1",
  "sqlx",
  "tokio",
  "toml",
@@ -994,7 +1019,7 @@ dependencies = [
  "serde-aux",
  "serde_json",
  "serenity",
- "songbird",
+ "songbird 0.1.8",
  "tokio",
  "tokio-rustls 0.22.0",
  "tracing",
@@ -1015,7 +1040,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6607c62aa161d23d17a9072cc5da0be67cdfc89d3afb1e8d9c842bebc2525ffe"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.5.2",
  "bitflags",
  "cfg-if",
  "ryu",
@@ -2085,16 +2110,35 @@ version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "047aa67ab0755d1d021fdf1e044e72fd724e3a5cc8d6287919c790e0e082b58b"
 dependencies = [
- "async-trait",
- "async-tungstenite 0.13.1",
  "dashmap",
  "flume",
  "futures",
  "parking_lot",
  "serde",
  "serde_json",
- "serenity",
  "spinning_top",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "songbird"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37584eec8ef3a793f51aa2f7093476904bd83475f3fa4fb786145c226a0e3f5e"
+dependencies = [
+ "async-trait",
+ "async-tungstenite 0.14.0",
+ "dashmap",
+ "flume",
+ "futures",
+ "parking_lot",
+ "pin-project",
+ "serde",
+ "serde_json",
+ "serenity",
+ "symphonia-core",
  "tokio",
  "tracing",
  "tracing-futures",
@@ -2296,6 +2340,19 @@ name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+
+[[package]]
+name = "symphonia-core"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e32b956473d98c601dac257fab8a7700d42e49fdd7a33432dd5dc7fdd2448dd"
+dependencies = [
+ "arrayvec 0.4.12",
+ "bitflags",
+ "byteorder",
+ "lazy_static",
+ "log",
+]
 
 [[package]]
 name = "syn"
