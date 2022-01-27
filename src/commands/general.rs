@@ -1,30 +1,20 @@
-use crate::shared_data::ShardManagerContainer;
+use crate::error::Error;
+use crate::Context;
 use async_minecraft_ping::ConnectionConfig;
-use serde_json::json;
-use serenity::{
-    builder::CreateEmbed,
-    client::bridge::gateway::ShardId,
-    framework::standard::{macros::command, Args, CommandResult},
-    model::channel::Message,
-    prelude::*,
-};
+use serenity::{builder::CreateEmbed, client::bridge::gateway::ShardId};
 use std::time::Instant;
 
-#[command]
-async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
+#[poise::command(slash_command)]
+pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     let now = Instant::now();
     reqwest::get("https://discordapp.com/api/v6/gateway").await?;
     let get_latency = now.elapsed().as_millis();
 
     let shard_latency = {
-        let shard_manager = {
-            let data = ctx.data.read().await;
-            data.get::<ShardManagerContainer>().unwrap().clone()
-        };
-        let manager = shard_manager.lock().await;
-        let runners = manager.runners.lock().await;
+        let shard_manager = ctx.data().shard_manager.lock().await;
+        let runners = shard_manager.runners.lock().await;
 
-        if let Some(runner) = runners.get(&ShardId(ctx.shard_id)) {
+        if let Some(runner) = runners.get(&ShardId(ctx.discord().shard_id)) {
             match runner.latency {
                 Some(latency) => format!("{}ms", latency.as_millis()),
                 None => "?ms".to_string(),
@@ -34,14 +24,13 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
         }
     };
 
-    let map = json!({"content" : "Calculating latency..."});
-
     let now = Instant::now();
-    let mut message = ctx.http.send_message(msg.channel_id.0, &map).await?;
+    let reply_handle = ctx.say("Calculating latency...").await?;
     let post_latency = now.elapsed().as_millis();
+    let mut message = reply_handle.unwrap().message().await?;
 
     message
-        .edit(ctx, |m| {
+        .edit(ctx.discord(), |m| {
             m.content("");
             m.embed(|e| {
                 e.title("Pong :ping_pong:");
@@ -56,10 +45,13 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
     Ok(())
 }
 
-#[command]
-#[min_args(1)]
-async fn minecraft(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let address: Vec<&str> = args.message().split(':').collect();
+#[poise::command(slash_command)]
+pub async fn minecraft(
+    ctx: Context<'_>,
+    #[description = "IP adress"] args: String,
+) -> Result<(), Error> {
+    ctx.defer().await?;
+    let address: Vec<&str> = args.split(':').collect();
     let port = match address.get(1) {
         Some(port) => port.parse().unwrap_or(25565),
         None => 25565,
@@ -79,26 +71,28 @@ async fn minecraft(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         "{}\nPlayers online: {}/{}",
         motd, connection.status.players.online, connection.status.players.max
     ));
-
     if let Some(icon_base64) = &connection.status.favicon {
         let icon_base64 = &icon_base64[22..].replace('\n', "");
         if let Ok(icon) = base64::decode(icon_base64) {
-            let path = format!(
-                "mc_icon_{}.png",
-                args.message().replace('.', "").replace(':', "")
-            );
-            std::fs::write(&path, icon)?;
-            embed.thumbnail(format!("attachment://{}", &path));
-            msg.channel_id
-                .send_files(ctx, vec![&path[..]], |m| m.set_embed(embed))
+            let path = format!("mc_icon_{}.png", args.replace('.', "").replace(':', ""));
+            if std::fs::write(&path, icon).is_ok() {
+                embed.thumbnail(format!("attachment://{}", &path));
+                ctx.send(|m| {
+                    m.attachment(path.as_str().into());
+                    m.embeds.push(embed);
+                    m
+                })
                 .await?;
-            let _err = std::fs::remove_file(path);
+                let _err = std::fs::remove_file(path);
+                return Ok(());
+            }
         }
-    } else {
-        msg.channel_id
-            .send_message(ctx, |m| m.set_embed(embed))
-            .await?;
     }
+    ctx.send(|m| {
+        m.embeds.push(embed);
+        m
+    })
+    .await?;
 
     Ok(())
 }

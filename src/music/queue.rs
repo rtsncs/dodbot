@@ -1,4 +1,3 @@
-use crate::guild::Guild;
 use lavalink_rs::{error::LavalinkResult, model::Track, LavalinkClient};
 use rand::prelude::SliceRandom;
 use serenity::{
@@ -120,12 +119,6 @@ impl Queue {
             users: VecDeque::default(),
             user_queues: HashMap::default(),
         }))
-    }
-    pub async fn get(ctx: &Context, guild_id: GuildId) -> Arc<Mutex<Self>> {
-        let guild = Guild::get(ctx, guild_id).await;
-        let guild_lock = guild.lock().await;
-
-        guild_lock.queue.clone()
     }
 
     pub async fn enqueue(
