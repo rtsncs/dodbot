@@ -157,15 +157,16 @@ async fn update_mc_channels(ctx: Arc<Context>) {
 
                         let config =
                             async_minecraft_ping::ConnectionConfig::build(ip[0]).with_port(port);
-                        if let Ok(mut connection) = config.connect().await {
-                            if let Ok(status) = connection.status().await {
+                        if let Ok(connection) = config.connect().await {
+                            if let Ok(connection) = connection.status().await {
                                 if let Err(why) = channel
                                     .edit(&*ctx, |c| {
                                         c.name(name.replace(
                                             '$',
                                             &format!(
                                                 "{}/{}",
-                                                status.players.online, status.players.max
+                                                connection.status.players.online,
+                                                connection.status.players.max
                                             ),
                                         ))
                                     })

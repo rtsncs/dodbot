@@ -66,10 +66,10 @@ async fn minecraft(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     };
 
     let config = ConnectionConfig::build(address[0]).with_port(port);
-    let mut connection = config.connect().await?;
-    let status = connection.status().await?;
+    let connection = config.connect().await?;
+    let connection = connection.status().await?;
 
-    let motd = match status.description {
+    let motd = match connection.status.description {
         async_minecraft_ping::ServerDescription::Plain(motd) => motd,
         async_minecraft_ping::ServerDescription::Object { text } => text,
     };
@@ -77,10 +77,10 @@ async fn minecraft(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let mut embed = CreateEmbed::default();
     embed.title(address[0]).description(format!(
         "{}\nPlayers online: {}/{}",
-        motd, status.players.online, status.players.max
+        motd, connection.status.players.online, connection.status.players.max
     ));
 
-    if let Some(icon_base64) = &status.favicon {
+    if let Some(icon_base64) = &connection.status.favicon {
         let icon_base64 = &icon_base64[22..].replace('\n', "");
         if let Ok(icon) = base64::decode(icon_base64) {
             let path = format!(

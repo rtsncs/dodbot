@@ -102,8 +102,8 @@ async fn minecraftchannel(ctx: &Context, msg: &Message, mut args: Args) -> Comma
     let name = args.advance().remains().unwrap().to_string();
 
     let config = async_minecraft_ping::ConnectionConfig::build(ip[0]).with_port(port);
-    let mut connection = config.connect().await?;
-    let status = connection.status().await?;
+    let connection = config.connect().await?;
+    let connection = connection.status().await?;
 
     let data = ctx.data.read().await;
     let db = data.get::<Database>().unwrap();
@@ -112,7 +112,10 @@ async fn minecraftchannel(ctx: &Context, msg: &Message, mut args: Args) -> Comma
         .create_channel(ctx, |c| {
             c.kind(Voice).name(name.replace(
                 '$',
-                &format!("{}/{}", status.players.online, status.players.max),
+                &format!(
+                    "{}/{}",
+                    connection.status.players.online, connection.status.players.max
+                ),
             ))
         })
         .await?;
