@@ -571,9 +571,9 @@ dependencies = [
 
 [[package]]
 name = "futures"
-version = "0.3.16"
+version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1adc00f486adfc9ce99f77d717836f0c5aa84965eb0b4f051f4e83f7cab53f8b"
+checksum = "28560757fe2bb34e79f907794bb6b22ae8b0e5c669b638a1132f2592b19035b4"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -602,9 +602,9 @@ checksum = "d0c8ff0461b82559810cdccfde3215c3f373807f5e5232b71479bff7bb2583d7"
 
 [[package]]
 name = "futures-executor"
-version = "0.3.16"
+version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d0d535a57b87e1ae31437b892713aee90cd2d7b0ee48727cd11fc72ef54761c"
+checksum = "29d6d2ff5bb10fb95c85b8ce46538a2e5f5e7fdc755623a7d4529ab8a4ed9d2a"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -1675,15 +1675,15 @@ dependencies = [
 
 [[package]]
 name = "rspotify"
-version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cebf0080b78317b3208858454cb744b05ccf296d975f47d72624b8032a05875"
 dependencies = [
  "async-stream",
  "async-trait",
  "base64 0.13.0",
  "chrono",
  "futures",
- "futures-util",
  "getrandom 0.2.3",
  "log",
  "maybe-async",
@@ -1692,39 +1692,40 @@ dependencies = [
  "rspotify-model",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
  "url",
 ]
 
 [[package]]
 name = "rspotify-http"
-version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9328d4a8bb0863212dc93fdfc2c8c07eae4c9295f854f4453c25818faf767a10"
 dependencies = [
  "async-trait",
- "base64 0.13.0",
- "futures",
  "log",
  "maybe-async",
  "reqwest",
- "rspotify-model",
  "serde_json",
  "thiserror",
- "url",
 ]
 
 [[package]]
 name = "rspotify-macros"
-version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fbdbcf984d771b418eafcebecad34f65d02f1db64c8a3db49ec0cf599775b5a"
 
 [[package]]
 name = "rspotify-model"
-version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify#5240c1d718e2d17f7cab6878f72d98c70cc91f2b"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe4b795e0173f15e732fe14b60dda53530e6e4c3d5b7f9441d02c7740e9168d2"
 dependencies = [
  "chrono",
  "serde",
+ "serde_json",
  "strum",
  "thiserror",
 ]
@@ -1777,6 +1778,12 @@ checksum = "5eebeaeb360c87bfb72e84abdb3447159c0eaececf1bef2aecd65a8be949d1c9"
 dependencies = [
  "base64 0.13.0",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
 
 [[package]]
 name = "ryu"
@@ -2253,22 +2260,23 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.21.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaf86bbcfd1fa9670b7a129f64fc0c9fcbbfe4f1bc4210e9e98fe71ffc12cde2"
+checksum = "cae14b91c7d11c9a851d3fbc80a963198998c2a64eec840477fa92d8ce9b70bb"
 dependencies = [
  "strum_macros",
 ]
 
 [[package]]
 name = "strum_macros"
-version = "0.21.1"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
+checksum = "5bb0dc7ee9c15cea6199cde9a127fa16a4c5819af85395457ad72d68edc85a38"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
+ "rustversion",
  "syn",
 ]
 

@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let spotify_creds = Credentials {
         id: config["spotify_id"].as_str().unwrap().to_string(),
-        secret: config["spotify_secret"].as_str().unwrap().to_string(),
+        secret: Some(config["spotify_secret"].as_str().unwrap().to_string()),
     };
 
     let mut spotify_client = ClientCredsSpotify::new(spotify_creds);

@@ -7,7 +7,10 @@ use crate::{
     Lavalink,
 };
 use regex::Regex;
-use rspotify::{clients::BaseClient, model::Id as SpotifyId};
+use rspotify::{
+    clients::BaseClient,
+    model::{AlbumId, Id, PlaylistId, TrackId},
+};
 use serenity::{
     builder::CreateEmbed,
     client::Context,
@@ -116,13 +119,13 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     return Err("Use the `playlist` command to queue an album or a playlist".into());
                 }
                 let id = &capture[3];
-                let id = SpotifyId::from_id(id)?;
-                let track = match spotify.track(id).await {
+                let id = TrackId::from_id(id)?;
+                let track = match spotify.track(&id).await {
                     Ok(track) => track,
                     Err(why) => {
                         if let rspotify::ClientError::Http(_) = why {
                             utils::refresh_spotify_token(spotify).await?;
-                            spotify.track(id).await?
+                            spotify.track(&id).await?
                         } else {
                             return Err(why.into());
                         }
@@ -195,10 +198,10 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 let mut offset = 0;
                 if &capture[2] == "album" {
                     let limit = 50;
-                    let id = SpotifyId::from_id(id)?;
+                    let id = AlbumId::from_id(id)?;
                     loop {
                         let album = match spotify
-                            .album_track_manual(id, Some(limit), Some(offset))
+                            .album_track_manual(&id, Some(limit), Some(offset))
                             .await
                         {
                             Ok(album) => album,
@@ -206,7 +209,7 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                                 if let rspotify::ClientError::Http(_) = why {
                                     utils::refresh_spotify_token(spotify).await?;
                                     spotify
-                                        .album_track_manual(id, Some(limit), Some(offset))
+                                        .album_track_manual(&id, Some(limit), Some(offset))
                                         .await?
                                 } else {
                                     return Err(why.into());
@@ -229,10 +232,11 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     }
                 } else {
                     let limit = 100;
-                    let id = SpotifyId::from_id(id)?;
+                    let id = PlaylistId::from_id(id)?;
+
                     loop {
                         let playlist = match spotify
-                            .playlist_tracks_manual(id, None, None, Some(limit), Some(offset))
+                            .playlist_items_manual(&id, None, None, Some(limit), Some(offset))
                             .await
                         {
                             Ok(playlist) => playlist,
@@ -240,8 +244,8 @@ async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                                 if let rspotify::ClientError::Http(_) = why {
                                     utils::refresh_spotify_token(spotify).await?;
                                     spotify
-                                        .playlist_tracks_manual(
-                                            id,
+                                        .playlist_items_manual(
+                                            &id,
                                             None,
                                             None,
                                             Some(limit),
