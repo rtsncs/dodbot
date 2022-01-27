@@ -1,48 +1,40 @@
 use crate::error::Error;
 use crate::Context;
 use serenity::model::prelude::ChannelType::Voice;
-use tracing::{error, info};
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, owners_only)]
 pub async fn roundrobin(
     ctx: Context<'_>,
-    #[description = "On/Off"] arg: bool,
+    #[description = "On/Off"] setting: bool,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 
     let data = ctx.data();
     let queue = data.guilds.get_queue(guild_id).await;
     let mut queue_lock = queue.lock().await;
-    queue_lock.set_round_robin(arg);
+    queue_lock.set_round_robin(setting);
 
     let database = &data.database;
 
-    if let Err(why) = sqlx::query!(
+    sqlx::query!(
         "INSERT INTO guilds (guild_id, round_robin)
         VALUES ($1, $2)
         ON CONFLICT (guild_id) DO UPDATE
             SET round_robin = $2
         ",
         guild_id.0 as i64,
-        arg
+        setting
     )
     .execute(database)
-    .await
-    {
-        error!(
-            "Error updating round robin setting in guild {}: {:?}",
-            guild_id, why
-        );
-        ctx.say("Error").await?;
-    } else {
-        info!("Round robin setting updated in guild {}", guild_id);
-        ctx.say("Done.").await?;
-    }
+    .await?;
+
+    let msg = if setting { "on" } else { "off" };
+    ctx.say(format!("Round robin is now {msg}.")).await?;
 
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, owners_only)]
 pub async fn minecraftchannel(
     ctx: Context<'_>,
     #[description = "IP address"] address: String,
@@ -74,7 +66,7 @@ pub async fn minecraftchannel(
     let channel_id = channel.id.0 as i64;
 
     let database = &ctx.data().database;
-    if let Err(why) = sqlx::query!(
+    sqlx::query!(
         "INSERT INTO guilds (guild_id, mc_addresses, mc_channels, mc_names)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (guild_id) DO UPDATE
@@ -87,16 +79,9 @@ pub async fn minecraftchannel(
         &vec![name],
     )
     .execute(database)
-    .await
-    {
-        error!(
-            "Error updating minecraft settings in guild {}: {:?}",
-            guild_id.0, why
-        );
-        ctx.say("Error").await?;
-        return Ok(());
-    }
+    .await?;
 
     ctx.say("Done.").await?;
+
     Ok(())
 }
