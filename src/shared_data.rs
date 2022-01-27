@@ -1,37 +1,95 @@
+use crate::config::Config;
+use crate::error::Error;
+use crate::events::LavalinkHandler;
 use crate::guild::Guild;
+use crate::music::queue::Queue;
 use genius_rs::Genius as GeniusClient;
 use lavalink_rs::LavalinkClient;
 use rspotify::ClientCredsSpotify;
+use rspotify::Credentials;
 use serenity::{client::bridge::gateway::ShardManager, model::id::GuildId, prelude::*};
-use sqlx::PgPool;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{collections::HashMap, sync::Arc};
+use tracing::info;
 
-pub struct Guilds;
-impl TypeMapKey for Guilds {
-    type Value = Arc<Mutex<HashMap<GuildId, Arc<Mutex<Guild>>>>>;
+pub struct Guilds {
+    pub inner: Arc<Mutex<HashMap<GuildId, Arc<Mutex<Guild>>>>>,
+}
+impl Guilds {
+    pub async fn get(&self, guild_id: GuildId) -> Arc<Mutex<Guild>> {
+        let inner_lock = self.inner.lock().await;
+        inner_lock.get(&guild_id).unwrap().clone()
+    }
+    pub async fn get_queue(&self, guild_id: GuildId) -> Arc<Mutex<Queue>> {
+        let guild = self.get(guild_id).await;
+        let guild_lock = guild.lock().await;
+        guild_lock.queue.clone()
+    }
 }
 
-pub struct Lavalink;
-impl TypeMapKey for Lavalink {
-    type Value = LavalinkClient;
+pub struct Data {
+    pub guilds: Guilds,
+    pub lavalink: LavalinkClient,
+    pub database: PgPool,
+    pub spotify: ClientCredsSpotify,
+    pub shard_manager: Arc<Mutex<ShardManager>>,
+    pub genius: GeniusClient,
 }
+impl Data {
+    pub async fn new<U, E>(
+        ctx: &Context,
+        ready: &serenity::model::prelude::Ready,
+        framework: &poise::Framework<U, E>,
+        config: Config,
+    ) -> Result<Self, Error> {
+        info!("Connected to Discord as {}", ready.user.name);
+        let database = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&config.db_string)
+            .await?;
+        info!("Connected to database");
 
-pub struct Database;
-impl TypeMapKey for Database {
-    type Value = PgPool;
-}
+        let mut guilds = HashMap::default();
 
-pub struct Spotify;
-impl TypeMapKey for Spotify {
-    type Value = ClientCredsSpotify;
-}
+        for guild in &ready.guilds {
+            guilds.insert(
+                guild.id,
+                crate::guild::Guild::new(guild.id, &database).await,
+            );
+        }
 
-pub struct ShardManagerContainer;
-impl TypeMapKey for ShardManagerContainer {
-    type Value = Arc<Mutex<ShardManager>>;
-}
+        let guilds = Arc::new(Mutex::new(guilds));
 
-pub struct Genius;
-impl TypeMapKey for Genius {
-    type Value = GeniusClient;
+        let lavalink = LavalinkClient::builder(ready.user.id.0)
+            .set_host(&config.lava_address)
+            .set_port(config.lava_port)
+            .set_password(&config.lava_password)
+            .build(LavalinkHandler {
+                guilds: guilds.clone(),
+                http: ctx.http.clone(),
+            })
+            .await?;
+        info!("Connected to lavalink");
+
+        let spotify_creds = Credentials {
+            id: config.spotify_id,
+            secret: Some(config.spotify_secret),
+        };
+
+        let mut spotify = ClientCredsSpotify::new(spotify_creds);
+        spotify.request_token().await.unwrap();
+
+        let genius = GeniusClient::new(config.genius_token);
+
+        let shard_manager = framework.shard_manager();
+
+        Ok(Self {
+            database,
+            guilds: Guilds { inner: guilds },
+            lavalink,
+            spotify,
+            genius,
+            shard_manager,
+        })
+    }
 }

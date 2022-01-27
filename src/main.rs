@@ -8,30 +8,26 @@
 #![allow(clippy::non_ascii_literal)]
 
 mod commands;
+mod config;
+mod error;
 mod events;
-mod framework;
 mod framework_functions;
 mod guild;
 mod music;
 mod shared_data;
 
-use events::*;
-use framework::*;
 use framework_functions::*;
-use genius_rs::Genius as GeniusClient;
-use lavalink_rs::LavalinkClient;
-use rspotify::{ClientCredsSpotify, Credentials};
-use serenity::{
-    client::bridge::gateway::GatewayIntents, framework::standard::StandardFramework, http::Http,
-    prelude::*,
-};
-use shared_data::*;
 use songbird::SerenityInit;
-use sqlx::postgres::PgPoolOptions;
-use std::{boxed::Box, collections::HashMap, fs::read_to_string, sync::Arc};
-use toml::Value;
-use tracing::{error, info, instrument};
+use tracing::instrument;
 use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter};
+
+pub type Context<'a> = poise::Context<'a, shared_data::Data, error::Error>;
+
+#[poise::command(prefix_command, hide_in_help, owners_only)]
+async fn register(ctx: Context<'_>, #[flag] global: bool) -> Result<(), error::Error> {
+    poise::builtins::register_application_commands(ctx, global).await?;
+    Ok(())
+}
 
 #[tokio::main]
 #[instrument]
@@ -51,103 +47,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let config = read_to_string("./config.toml")?.parse::<Value>()?;
-    let token = config["token"].as_str().unwrap();
-    let db_string = config["db_string"].as_str().unwrap();
-
-    let pool = match PgPoolOptions::new()
-        .max_connections(5)
-        .connect(db_string)
-        .await
-    {
-        Ok(pool) => {
-            info!("Connected to database");
-            pool
-        }
-        Err(why) => panic!("Error connecting to database: {}", why),
+    let config: config::Config = toml::from_str(&std::fs::read_to_string("config.toml")?)?;
+    let options = poise::FrameworkOptions {
+        commands: vec![
+            register(),
+            commands::admin::roundrobin(),
+            commands::admin::minecraftchannel(),
+            commands::general::ping(),
+            commands::general::minecraft(),
+        ],
+        // on_error: on_dispatch_error,
+        pre_command: |ctx| Box::pin(async move { before(ctx) }),
+        // post_command: after,
+        // prefix_options: poise::PrefixFrameworkOptions {
+        //     prefix: None,
+        //     mention_as_prefix: true,
+        //     dynamic_prefix: Some(dynamic_prefix),
+        ..Default::default()
     };
-
-    let http = Http::new_with_token(token);
-
-    let bot_id = match http.get_current_application_info().await {
-        Ok(info) => info.id,
-        Err(why) => panic!("Could not access application info: {:?}", why),
-    };
-
-    let framework = StandardFramework::new()
-        .configure(|c| {
-            c.prefix("")
-                .on_mention(Some(bot_id))
-                .dynamic_prefix(dynamic_prefix)
-                .with_whitespace(true)
-                .case_insensitivity(true)
+    let framework = poise::Framework::build()
+        .token(&config.token)
+        .options(options)
+        .user_data_setup(move |ctx, ready, framework| {
+            Box::pin(async move { shared_data::Data::new(ctx, ready, framework, config).await })
         })
-        .on_dispatch_error(on_dispatch_error)
-        .before(before)
-        .after(after)
-        .group(&MUSIC_GROUP)
-        .group(&ADMIN_GROUP)
-        .group(&GENERAL_GROUP);
-
-    let mut client = Client::builder(token)
-        .event_handler(Handler)
-        .framework(framework)
-        .register_songbird()
-        .intents({
-            let mut intents = GatewayIntents::empty();
-            intents.insert(GatewayIntents::GUILDS);
-            intents.insert(GatewayIntents::GUILD_MESSAGES);
-            intents.insert(GatewayIntents::GUILD_VOICE_STATES);
-
-            intents
-        })
+        .client_settings(|c| c.register_songbird())
+        .build()
         .await?;
 
-    let guilds = Arc::new(Mutex::new(HashMap::default()));
-
-    let lava_client = LavalinkClient::builder(bot_id)
-        .set_host(config["lava_address"].as_str().unwrap().to_string())
-        .set_port(config["lava_port"].as_integer().unwrap() as u16)
-        .set_password(config["lava_password"].as_str().unwrap().to_string())
-        .build(LavalinkHandler {
-            guilds: guilds.clone(),
-            http,
-        })
-        .await?;
-    info!("Connected to lavalink");
-
-    let spotify_creds = Credentials {
-        id: config["spotify_id"].as_str().unwrap().to_string(),
-        secret: Some(config["spotify_secret"].as_str().unwrap().to_string()),
-    };
-
-    let mut spotify_client = ClientCredsSpotify::new(spotify_creds);
-    spotify_client.request_token().await?;
-
-    let genius_client = GeniusClient::new(config["genius_token"].as_str().unwrap().to_string());
-
-    {
-        let mut data = client.data.write().await;
-        data.insert::<Database>(pool);
-        data.insert::<Guilds>(guilds);
-        data.insert::<Lavalink>(lava_client);
-        data.insert::<Spotify>(spotify_client);
-        data.insert::<ShardManagerContainer>(client.shard_manager.clone());
-        data.insert::<Genius>(genius_client);
-    }
-
-    let shard_manager = client.shard_manager.clone();
-
+    let shard_manager = framework.shard_manager();
     tokio::spawn(async move {
         tokio::signal::ctrl_c()
             .await
             .expect("Error registering ctrl+c handler");
-        info!("Shutting down!");
+        tracing::info!("Shutting down!");
         shard_manager.lock().await.shutdown_all().await;
     });
 
-    if let Err(why) = client.start().await {
-        error!("Error running client: {}", why);
+    if let Err(why) = framework.start().await {
+        tracing::error!("Error running client: {}", why);
     }
 
     Ok(())
