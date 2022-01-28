@@ -1,12 +1,3 @@
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::blocks_in_if_conditions)]
-#![allow(clippy::non_ascii_literal)]
-
 mod commands;
 mod config;
 mod error;
@@ -63,14 +54,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             commands::music::nowplaying(),
             commands::music::queue(),
             commands::music::myqueue(),
+            commands::music::clear(),
+            commands::music::stop(),
+            commands::music::remove(),
+            commands::music::mv(),
+            commands::music::swap(),
+            commands::music::skip(),
+            commands::music::shuffle(),
+            commands::music::seek(),
+            commands::music::pause(),
+            commands::music::resume(),
+            commands::music::repeat(),
+            commands::music::volume(),
+            commands::music::lyrics(),
         ],
-        // on_error: on_dispatch_error,
         pre_command: |ctx| Box::pin(async move { before(ctx) }),
-        // post_command: after,
-        // prefix_options: poise::PrefixFrameworkOptions {
-        //     prefix: None,
-        //     mention_as_prefix: true,
-        //     dynamic_prefix: Some(dynamic_prefix),
+        listener: |ctx, event, framework, data| {
+            Box::pin(async move { events::event_listener(ctx, event, framework, data).await })
+        },
         ..Default::default()
     };
     let framework = poise::Framework::build()

@@ -1,21 +1,25 @@
-use crate::error::Error;
-use crate::music::{
-    queue::{LoopModes, Queue, QueuedTrack},
-    utils,
+use crate::{
+    error::Error,
+    music::{
+        queue::{LoopModes, QueuedTrack},
+        utils,
+    },
+    Context,
 };
-use crate::Context;
 use regex::Regex;
 use rspotify::{
     clients::BaseClient,
     model::{AlbumId, Id, PlaylistId, TrackId},
 };
-use serenity::builder::CreateEmbed;
-use serenity::model::interactions::message_component::ButtonStyle;
-use serenity::model::interactions::InteractionResponseType;
+use serenity::{
+    builder::CreateEmbed,
+    model::interactions::{message_component::ButtonStyle, InteractionResponseType},
+};
 use std::time::Duration;
 
 #[poise::command(slash_command)]
 pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
     let guild = ctx.guild().unwrap();
 
     let channel_id = guild
@@ -29,9 +33,7 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
             ctx.say(format!("Joined <#{id}>")).await?;
         }
         None => {
-            return Err(Error::JoinError(
-                "You must be in a voice channel.".to_string(),
-            ));
+            return Err(Error::Join("You must be in a voice channel.".to_string()));
         }
     }
 
@@ -79,6 +81,7 @@ pub async fn play(
     ctx: Context<'_>,
     #[description = "Name/link to a song"] mut query: String,
 ) -> Result<(), Error> {
+    ctx.defer().await?;
     let (lava, queue) = utils::voice_check(&ctx, true).await?;
     let data = ctx.data();
     if query.contains("open.spotify.com") {
@@ -229,6 +232,7 @@ pub async fn search(
     ctx: Context<'_>,
     #[description = "Search query"] query: String,
 ) -> Result<(), Error> {
+    ctx.defer().await?;
     let (lava, queue) = utils::voice_check(&ctx, true).await?;
     let mut query_result = lava.search_tracks(query).await?;
 
@@ -446,280 +450,223 @@ pub async fn myqueue(
     Ok(())
 }
 
-// #[command]
-// #[aliases(c)]
-// async fn clear(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let mut queue_lock = queue.lock().await;
-//     queue_lock.clear(msg.author.id);
-//     utils::react_ok(ctx, msg).await;
-//
-//     Ok(())
-// }
-//
-// #[command]
-// async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok((lava, queue)) => {
-//             if queue.lock().await.stop(lava).await.is_err() {
-//                 return Err("Error stoping".into());
-//             }
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(delete, r, d, rm)]
-// #[min_args(1)]
-// async fn remove(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let index = args.parse::<usize>()?;
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let mut queue_lock = queue.lock().await;
-//     match queue_lock.remove(index - 1, msg.author.id) {
-//         Some(track) => {
-//             msg.channel_id
-//                 .send_message(ctx, |m| {
-//                     m.embed(|e| {
-//                         e.description(format!("{} has been removed from the queue", &track.title))
-//                     })
-//                 })
-//                 .await?;
-//         }
-//         None => return Err("Index out of range".into()),
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(move)]
-// #[min_args(1)]
-// async fn mv(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-//     let from = args.parse::<usize>()?;
-//     let to = args.advance().parse::<usize>().unwrap_or(1);
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let mut queue_lock = queue.lock().await;
-//     match queue_lock.move_track(from - 1, to - 1, msg.author.id) {
-//         Some(track) => {
-//             msg.channel_id
-//                 .send_message(ctx, |m| {
-//                     m.embed(|e| {
-//                         e.description(format!(
-//                             "{} has been moved to position {}",
-//                             &track.title, to
-//                         ))
-//                     })
-//                 })
-//                 .await?;
-//         }
-//         None => return Err("Index out of range".into()),
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[min_args(2)]
-// async fn swap(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-//     let first = args.parse::<usize>()?;
-//     let second = args.advance().parse::<usize>()?;
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let mut queue_lock = queue.lock().await;
-//     match queue_lock.swap(first - 1, second - 1, msg.author.id) {
-//         Some((first, second)) => {
-//             msg.channel_id
-//                 .send_message(ctx, |m| {
-//                     m.embed(|e| {
-//                         e.description(format!(
-//                             "{} and {} have been swapped",
-//                             &first.title, &second.title,
-//                         ))
-//                     })
-//                 })
-//                 .await?;
-//         }
-//         None => return Err("Index out of range".into()),
-//     };
-//
-//     Ok(())
-// }
-//
-// #[command]
-// async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok((lava, queue)) => {
-//             if queue.lock().await.skip(lava).await.is_err() {
-//                 return Err("Error skipping the track".into());
-//             }
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(sh)]
-// async fn shuffle(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild_id = msg.guild_id.unwrap();
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok(_) => {
-//             let queue = Queue::get(ctx, guild_id).await;
-//             let mut queue_lock = queue.lock().await;
-//             queue_lock.shuffle(msg.author.id);
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => return Err(why.into()),
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[min_args(1)]
-// async fn seek(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let position = Duration::from_secs(args.parse::<u64>().unwrap());
-//     let guild_id = msg.guild_id.unwrap();
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok((lava, _)) => {
-//             if lava.seek(guild_id, position).await.is_err() {
-//                 return Err("Error seeking the track".into());
-//             }
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// async fn pause(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild_id = msg.guild_id.unwrap();
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok((lava, _)) => {
-//             if lava.pause(guild_id).await.is_err() {
-//                 return Err("Error pausing the track".into());
-//             }
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(r, unpause)]
-// async fn resume(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild_id = msg.guild_id.unwrap();
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok((lava, _)) => {
-//             if lava.resume(guild_id).await.is_err() {
-//                 return Err("Error resuming the track".into());
-//             }
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(loop)]
-// async fn repeat(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let mode = match args.current() {
-//         Some("song") => LoopModes::Song,
-//         Some("queue") => LoopModes::Queue,
-//         Some("none") => LoopModes::None,
-//         _ => return Err("Invalid argument".into()),
-//     };
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok(_) => {
-//             let guild_id = msg.guild_id.unwrap();
-//             let queue = Queue::get(ctx, guild_id).await;
-//             let mut queue_lock = queue.lock().await;
-//             queue_lock.set_loop_mode(mode, msg.author.id);
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => return Err(why.into()),
-//     }
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(vol)]
-// #[min_args(1)]
-// async fn volume(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let volume = if let Ok(volume) = args.parse::<u16>() {
-//         if volume > 1000 {
-//             return Err("Volume must be between 0% and 1000%.".into());
-//         }
-//         volume
-//     } else {
-//         return Err("Volume must be between 0% and 1000%.".into());
-//     };
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     match utils::voice_check(ctx, msg, false).await {
-//         Ok((lava, _)) => {
-//             lava.volume(guild_id, volume).await?;
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(why) => return Err(why.into()),
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[min_args(1)]
-// async fn lyrics(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let title = args.message().to_string();
-//     let data = ctx.data.read().await;
-//     let genius = data.get::<Genius>().unwrap();
-//
-//     let response = genius.search(&title).await?;
-//     if response.is_empty() {
-//         return Err("Lyrics not found".into());
-//     }
-//     let url = &response[0].result.url;
-//     let title = &response[0].result.full_title;
-//     let lyrics = genius.get_lyrics(url).await?;
-//
-//     msg.channel_id
-//         .send_message(ctx, |m| {
-//             m.embed(|e| {
-//                 e.author(|a| a.name("Lyrics"))
-//                     .title(title)
-//                     .url(url)
-//                     .description(lyrics.join("\n"))
-//             })
-//         })
-//         .await?;
-//
-//     Ok(())
-// }
+#[poise::command(slash_command)]
+pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+
+    let queue = ctx.data().guilds.get_queue(guild_id).await;
+    let mut queue_lock = queue.lock().await;
+    queue_lock.clear(ctx.author().id);
+    ctx.say("Queue cleared").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
+    let (lava, queue) = utils::voice_check(&ctx, false).await?;
+    if queue.lock().await.stop(lava).await.is_err() {
+        return Err("Error stoping".into());
+    }
+    ctx.say("Done.").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn remove(
+    ctx: Context<'_>,
+    #[description = "Index"]
+    #[min = 1]
+    index: usize,
+) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+
+    let queue = ctx.data().guilds.get_queue(guild_id).await;
+    let mut queue_lock = queue.lock().await;
+    match queue_lock.remove(index - 1, ctx.author().id) {
+        Some(track) => {
+            ctx.send(|m| {
+                m.embed(|e| {
+                    e.description(format!("{} has been removed from the queue", &track.title))
+                })
+            })
+            .await?;
+        }
+        None => return Err("Index out of range".into()),
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command, rename = "move")]
+pub async fn mv(
+    ctx: Context<'_>,
+    #[description = "From"]
+    #[min = 1]
+    from: usize,
+    #[description = "To"]
+    #[min = 1]
+    to: Option<usize>,
+) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+    let to = to.unwrap_or(1);
+
+    let queue = ctx.data().guilds.get_queue(guild_id).await;
+    let mut queue_lock = queue.lock().await;
+    match queue_lock.move_track(from - 1, to - 1, ctx.author().id) {
+        Some(track) => {
+            ctx.send(|m| {
+                m.embed(|e| {
+                    e.description(format!(
+                        "{} has been moved to position {}",
+                        &track.title, to
+                    ))
+                })
+            })
+            .await?;
+        }
+        None => return Err("Index out of range".into()),
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn swap(
+    ctx: Context<'_>,
+    #[description = "First"]
+    #[min = 1]
+    first: usize,
+    #[description = "Second"]
+    #[min = 1]
+    second: usize,
+) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+
+    let queue = ctx.data().guilds.get_queue(guild_id).await;
+    let mut queue_lock = queue.lock().await;
+    match queue_lock.swap(first - 1, second - 1, ctx.author().id) {
+        Some((first, second)) => {
+            ctx.send(|m| {
+                m.embed(|e| {
+                    e.description(format!(
+                        "{} and {} have been swapped",
+                        &first.title, &second.title,
+                    ))
+                })
+            })
+            .await?;
+        }
+        None => return Err("Index out of range".into()),
+    };
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
+    let (lava, queue) = utils::voice_check(&ctx, false).await?;
+    queue.lock().await.skip(lava).await?;
+    ctx.say("Track skipped").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
+    let (_, queue) = utils::voice_check(&ctx, false).await?;
+    let mut queue_lock = queue.lock().await;
+    queue_lock.shuffle(ctx.author().id);
+    ctx.say("Queue shuffled").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn seek(
+    ctx: Context<'_>,
+    #[description = "Time in seconds"] time: u64,
+) -> Result<(), Error> {
+    let position = Duration::from_secs(time);
+    let guild_id = ctx.guild_id().unwrap();
+    let (lava, _) = utils::voice_check(&ctx, false).await?;
+    lava.seek(guild_id, position).await?;
+    ctx.say("Done").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+    let (lava, _) = utils::voice_check(&ctx, false).await?;
+    lava.pause(guild_id).await?;
+    ctx.say("Track paused").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+    let (lava, _) = utils::voice_check(&ctx, false).await?;
+    lava.resume(guild_id).await?;
+    ctx.say("Track resumed").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command, rename = "loop")]
+pub async fn repeat(
+    ctx: Context<'_>,
+    #[description = "Mode"] mode: LoopModes,
+) -> Result<(), Error> {
+    let (_, queue) = utils::voice_check(&ctx, false).await?;
+    let mut queue_lock = queue.lock().await;
+    queue_lock.set_loop_mode(mode, ctx.author().id);
+    ctx.say(format!("Loop mode set to {mode}")).await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn volume(
+    ctx: Context<'_>,
+    #[description = "Volume"]
+    #[min = 0]
+    #[max = 1000]
+    volume: u16,
+) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+    let (lava, _) = utils::voice_check(&ctx, false).await?;
+    lava.volume(guild_id, volume).await?;
+    ctx.say(format!("Volume set to {volume}")).await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn lyrics(ctx: Context<'_>, #[description = "Query"] query: String) -> Result<(), Error> {
+    let genius = &ctx.data().genius;
+
+    let response = genius.search(&query).await?;
+    if response.is_empty() {
+        return Err("Lyrics not found".into());
+    }
+    let url = &response[0].result.url;
+    let title = &response[0].result.full_title;
+    let lyrics = genius.get_lyrics(url).await?;
+
+    ctx.send(|m| {
+        m.embed(|e| {
+            e.author(|a| a.name("Lyrics"))
+                .title(title)
+                .url(url)
+                .description(lyrics.join("\n"))
+        })
+    })
+    .await?;
+
+    Ok(())
+}

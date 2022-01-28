@@ -1,7 +1,8 @@
-use super::queue::Queue;
-use crate::error::Error;
-use crate::error::Error::JoinError;
-use crate::Context;
+use crate::{
+    error::Error::{self, Join},
+    music::queue::Queue,
+    Context,
+};
 use lavalink_rs::LavalinkClient;
 use serenity::{
     model::id::{ChannelId, GuildId},
@@ -34,7 +35,7 @@ pub async fn voice_check(
                 let queue = data.guilds.get_queue(guild_id).await;
                 Ok((lava, queue))
             } else {
-                Err(JoinError(
+                Err(Join(
                     "You must be in the same voice channel to use this command".to_string(),
                 ))
             }
@@ -42,10 +43,10 @@ pub async fn voice_check(
             if should_join {
                 return join(ctx, guild_id, user_channel_id, ctx.channel_id()).await;
             }
-            Err(JoinError("Not in a voice channel".to_string()))
+            Err(Join("Not in a voice channel".to_string()))
         }
     } else {
-        Err(JoinError(
+        Err(Join(
             "You must in a voice channel to use this command.".to_string(),
         ))
     }
@@ -66,10 +67,10 @@ pub async fn join(
 
     let info = match info {
         Ok(info) => info,
-        Err(why) => return Err(JoinError(why.to_string())),
+        Err(why) => return Err(Join(why.to_string())),
     };
     if let Err(why) = handler.clone().lock().await.deafen(true).await {
-        return Err(JoinError(why.to_string()));
+        return Err(Join(why.to_string()));
     }
 
     let data = ctx.data();
@@ -81,7 +82,7 @@ pub async fn join(
 
     let lava_client = data.lavalink.clone();
     if let Err(why) = lava_client.create_session_with_songbird(&info).await {
-        return Err(JoinError(why.to_string()));
+        return Err(Join(why.to_string()));
     }
 
     Ok((lava_client, queue))

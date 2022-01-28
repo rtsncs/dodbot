@@ -1,5 +1,4 @@
-use crate::error::Error;
-use crate::Context;
+use crate::{error::Error, Context};
 use async_minecraft_ping::ConnectionConfig;
 use serenity::{builder::CreateEmbed, client::bridge::gateway::ShardId};
 use std::time::Instant;

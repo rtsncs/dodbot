@@ -1,12 +1,9 @@
-use crate::config::Config;
-use crate::error::Error;
-use crate::events::LavalinkHandler;
-use crate::guild::Guild;
-use crate::music::queue::Queue;
+use crate::{
+    config::Config, error::Error, events::LavalinkHandler, guild::Guild, music::queue::Queue,
+};
 use genius_rs::Genius as GeniusClient;
 use lavalink_rs::LavalinkClient;
-use rspotify::ClientCredsSpotify;
-use rspotify::Credentials;
+use rspotify::{ClientCredsSpotify, Credentials};
 use serenity::{client::bridge::gateway::ShardManager, model::id::GuildId, prelude::*};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{collections::HashMap, sync::Arc};
@@ -65,7 +62,9 @@ impl Data {
             .set_port(config.lava_port)
             .set_password(&config.lava_password)
             .build(LavalinkHandler {
-                guilds: guilds.clone(),
+                guilds: Guilds {
+                    inner: guilds.clone(),
+                },
                 http: ctx.http.clone(),
             })
             .await?;
@@ -80,8 +79,17 @@ impl Data {
         spotify.request_token().await.unwrap();
 
         let genius = GeniusClient::new(config.genius_token);
-
         let shard_manager = framework.shard_manager();
+        let ctx = Arc::new(ctx.clone());
+        let db = database.clone();
+
+        tokio::spawn(async move {
+            let db = db;
+            loop {
+                crate::events::update_mc_channels(ctx.clone(), &db).await;
+                tokio::time::sleep(std::time::Duration::from_secs(5 * 60)).await;
+            }
+        });
 
         Ok(Self {
             database,

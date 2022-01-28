@@ -1,5 +1,4 @@
-use crate::error::Error;
-use crate::Context;
+use crate::{error::Error, Context};
 use serenity::model::prelude::ChannelType::Voice;
 
 #[poise::command(slash_command, owners_only)]
