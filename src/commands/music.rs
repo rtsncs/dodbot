@@ -1,511 +1,451 @@
+use crate::error::Error;
 use crate::music::{
     queue::{LoopModes, Queue, QueuedTrack},
     utils,
 };
+use crate::Context;
 use regex::Regex;
 use rspotify::{
     clients::BaseClient,
     model::{AlbumId, Id, PlaylistId, TrackId},
 };
-use serenity::{builder::CreateEmbed, client::Context, model::channel::Message};
+use serenity::builder::CreateEmbed;
+use serenity::model::interactions::message_component::ButtonStyle;
+use serenity::model::interactions::InteractionResponseType;
 use std::time::Duration;
 
-// #[command]
-// #[aliases(connect)]
-// async fn join(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild = msg.guild(&ctx.cache).await.unwrap();
-//     let guild_id = guild.id;
-//
-//     let channel_id = guild
-//         .voice_states
-//         .get(&msg.author.id)
-//         .and_then(|voice_state| voice_state.channel_id);
-//
-//     let channel_id = if let Some(channel_id) = channel_id {
-//         channel_id
-//     } else {
-//         return Err("You must be in voice channel".into());
-//     };
-//
-//     match utils::join(ctx, guild_id, channel_id, msg.channel_id).await {
-//         Ok(_) => {
-//             utils::react_ok(ctx, msg).await;
-//         }
-//         Err(_) => {
-//             return Err("Error joining the voice channel".into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(disconnect, dc)]
-// async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild = msg.guild(&ctx.cache).await.unwrap();
-//     let guild_id = guild.id;
-//
-//     let manager = songbird::get(ctx)
-//         .await
-//         .expect("Songbird client missing")
-//         .clone();
-//
-//     let has_handler = manager.get(guild_id).is_some();
-//     let bot_id = ctx
-//         .http
-//         .get_current_user()
-//         .await
-//         .expect("Error accessing bot id")
-//         .id;
-//
-//     if has_handler {
-//         let queue = Queue::get(ctx, guild_id).await;
-//         let mut queue_lock = queue.lock().await;
-//         queue_lock.clean_up();
-//
-//         let data = ctx.data.read().await;
-//         let lava = data.get::<crate::Lavalink>().unwrap().clone();
-//         if lava.destroy(guild_id).await.is_err() || manager.remove(guild_id).await.is_err() {
-//             return Err("Error disconnecting".into());
-//         }
-//         utils::react_ok(ctx, msg).await;
-//     } else if guild.voice_states.get(&bot_id).is_some() {
-//         guild
-//             .member(ctx, bot_id)
-//             .await
-//             .unwrap()
-//             .disconnect_from_voice(ctx)
-//             .await?;
-//
-//         utils::react_ok(ctx, msg).await;
-//     } else {
-//         return Err("Not in voice chat".into());
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(p)]
-// #[min_args(1)]
-// async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let mut query = args.message().to_string();
-//
-//     let is_url = query.starts_with("http");
-//
-//     match utils::voice_check(ctx, msg, true).await {
-//         Ok((lava, queue)) => {
-//             if query.contains("open.spotify.com") {
-//                 let mut data = ctx.data.write().await;
-//                 let spotify = data.get_mut::<Spotify>().unwrap();
-//                 let reg = Regex::new(
-//                     r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$",
-//                 )
-//                 .unwrap();
-//                 let capture = reg.captures(&query).unwrap();
-//                 if capture.len() < 3 {
-//                     return Err("Invalid spotify url".into());
-//                 }
-//                 if &capture[2] != "track" {
-//                     return Err("Use the `playlist` command to queue an album or a playlist".into());
-//                 }
-//                 let id = &capture[3];
-//                 let id = TrackId::from_id(id)?;
-//                 let track = match spotify.track(&id).await {
-//                     Ok(track) => track,
-//                     Err(why) => {
-//                         if let rspotify::ClientError::Http(_) = why {
-//                             utils::refresh_spotify_token(spotify).await?;
-//                             spotify.track(&id).await?
-//                         } else {
-//                             return Err(why.into());
-//                         }
-//                     }
-//                 };
-//                 query = format!("{} - {}", track.artists[0].name, track.name);
-//             }
-//             let query_result = lava.auto_search_tracks(query).await?;
-//
-//             if query_result.tracks.is_empty() {
-//                 return Err("No matching videos found".into());
-//             }
-//             let track = query_result.tracks[0].clone();
-//             let info = track.info.clone();
-//             if queue
-//                 .lock()
-//                 .await
-//                 .enqueue(QueuedTrack::new_initialized(track, msg.author.id), lava)
-//                 .await
-//                 .is_err()
-//             {
-//                 return Err("Error queuing the track".into());
-//             }
-//
-//             let title = info.map(|info| info.title);
-//             if is_url || title.is_none() {
-//                 utils::react_ok(ctx, msg).await;
-//             } else {
-//                 msg.channel_id
-//                     .send_message(ctx, |m| {
-//                         m.embed(|e| {
-//                             e.description(format!("{} added to the queue", title.clone().unwrap()))
-//                         })
-//                     })
-//                     .await?;
-//             }
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(pl)]
-// #[min_args(1)]
-// async fn playlist(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let query = args.message().to_string();
-//     let mut tracks: Vec<QueuedTrack> = Vec::new();
-//
-//     match utils::voice_check(ctx, msg, true).await {
-//         Ok((lava, queue)) => {
-//             if query.contains("open.spotify.com") {
-//                 let mut data = ctx.data.write().await;
-//                 let spotify = data.get_mut::<Spotify>().unwrap();
-//                 let reg = Regex::new(
-//                     r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$",
-//                 )
-//                 .unwrap();
-//                 let capture = reg.captures(&query).unwrap();
-//                 if capture.len() < 3 {
-//                     return Err("Invalid spotify url".into());
-//                 }
-//                 if &capture[2] == "track" {
-//                     return Err("Use the `play` command to queue a single track".into());
-//                 }
-//                 let id = &capture[3];
-//                 let mut offset = 0;
-//                 if &capture[2] == "album" {
-//                     let limit = 50;
-//                     let id = AlbumId::from_id(id)?;
-//                     loop {
-//                         let album = match spotify
-//                             .album_track_manual(&id, Some(limit), Some(offset))
-//                             .await
-//                         {
-//                             Ok(album) => album,
-//                             Err(why) => {
-//                                 if let rspotify::ClientError::Http(_) = why {
-//                                     utils::refresh_spotify_token(spotify).await?;
-//                                     spotify
-//                                         .album_track_manual(&id, Some(limit), Some(offset))
-//                                         .await?
-//                                 } else {
-//                                     return Err(why.into());
-//                                 }
-//                             }
-//                         };
-//
-//                         for track in album.items {
-//                             let title = track.name;
-//                             let artist = track.artists[0].name.clone();
-//                             let length = track.duration;
-//                             let query = format!("{} - {}", &artist, &title);
-//                             tracks.push(QueuedTrack::new(query, artist, length, msg.author.id));
-//                         }
-//
-//                         if album.next.is_none() {
-//                             break;
-//                         }
-//                         offset += limit;
-//                     }
-//                 } else {
-//                     let limit = 100;
-//                     let id = PlaylistId::from_id(id)?;
-//
-//                     loop {
-//                         let playlist = match spotify
-//                             .playlist_items_manual(&id, None, None, Some(limit), Some(offset))
-//                             .await
-//                         {
-//                             Ok(playlist) => playlist,
-//                             Err(why) => {
-//                                 if let rspotify::ClientError::Http(_) = why {
-//                                     utils::refresh_spotify_token(spotify).await?;
-//                                     spotify
-//                                         .playlist_items_manual(
-//                                             &id,
-//                                             None,
-//                                             None,
-//                                             Some(limit),
-//                                             Some(offset),
-//                                         )
-//                                         .await?
-//                                 } else {
-//                                     return Err(why.into());
-//                                 }
-//                             }
-//                         };
-//
-//                         for item in playlist.items {
-//                             if let Some(rspotify::model::PlayableItem::Track(track)) = item.track {
-//                                 let title = track.name;
-//                                 let artist = track.artists[0].name.clone();
-//                                 let length = track.duration;
-//                                 let query = format!("{} - {}", &artist, &title);
-//                                 tracks.push(QueuedTrack::new(query, artist, length, msg.author.id));
-//                             }
-//                         }
-//
-//                         if playlist.next.is_none() {
-//                             break;
-//                         }
-//                         offset += limit;
-//                     }
-//                 }
-//             } else {
-//                 let query_result = lava.get_tracks(query).await?;
-//                 for track in query_result.tracks {
-//                     tracks.push(QueuedTrack::new_initialized(track, msg.author.id));
-//                 }
-//             }
-//
-//             if tracks.is_empty() {
-//                 return Err("No matching videos found".into());
-//             }
-//             let amount = tracks.len();
-//             if queue
-//                 .lock()
-//                 .await
-//                 .enqueue_multiple(tracks, lava)
-//                 .await
-//                 .is_err()
-//             {
-//                 return Err("Error queuing the tracks".into());
-//             }
-//
-//             msg.channel_id
-//                 .send_message(ctx, |m| {
-//                     m.embed(|e| e.description(format!("Added {} tracks to the queue", amount)))
-//                 })
-//                 .await?;
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[min_args(1)]
-// async fn search(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let query = args.message();
-//
-//     match utils::voice_check(ctx, msg, true).await {
-//         Ok((lava, queue)) => {
-//             let mut query_result = lava.search_tracks(query).await?;
-//
-//             if query_result.tracks.is_empty() {
-//                 return Err("No videos found".into());
-//             }
-//             query_result.tracks.truncate(5);
-//
-//             let mut results = String::new();
-//             for (i, track) in query_result.tracks.iter().enumerate() {
-//                 let info = track.info.as_ref().unwrap();
-//                 let title = info.title.clone();
-//                 let length = info.length / 1000;
-//
-//                 results += &format!(
-//                     "{}. {} [{}]\n",
-//                     i + 1,
-//                     title,
-//                     utils::length_to_string(length)
-//                 );
-//             }
-//
-//             msg.channel_id
-//                 .send_message(ctx, |m| {
-//                     m.embed(|e| e.title("Search results").description(results))
-//                 })
-//                 .await?;
-//             if let Some(choice_msg) = msg
-//                 .author
-//                 .await_reply(ctx)
-//                 .channel_id(msg.channel_id)
-//                 .timeout(Duration::from_secs(10))
-//                 .await
-//             {
-//                 let choice = choice_msg.content.parse::<usize>();
-//                 match choice {
-//                     Ok(choice) => {
-//                         if (1..=5).contains(&choice) {
-//                             let track = query_result.tracks[choice - 1].clone();
-//                             if queue
-//                                 .lock()
-//                                 .await
-//                                 .enqueue(QueuedTrack::new_initialized(track, msg.author.id), lava)
-//                                 .await
-//                                 .is_err()
-//                             {
-//                                 return Err("Error queuing the track".into());
-//                             }
-//                             utils::react_ok(ctx, &choice_msg).await;
-//                         } else {
-//                             return Err("Incorrect choice".into());
-//                         }
-//                     }
-//                     Err(_) => {
-//                         return Err("Incorrect choice".into());
-//                     }
-//                 }
-//             } else {
-//                 return Err("No song selected within 10 seconds".into());
-//             }
-//         }
-//         Err(why) => {
-//             return Err(why.into());
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(nowplaying, np, song)]
-// async fn songinfo(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let queue_lock = queue.lock().await;
-//     let data = ctx.data.read().await;
-//     let lava = data.get::<Lavalink>().unwrap();
-//     let nodes = lava.nodes().await;
-//     let node = nodes.get(guild_id.as_u64());
-//
-//     let mut embed = CreateEmbed::default();
-//     embed
-//         .author(|a| a.name("Now playing"))
-//         .title("No track currently playing.");
-//
-//     if let Some(node) = node {
-//         if let Some(track) = &node.now_playing {
-//             let info = track.track.info.as_ref().unwrap();
-//             let title = info.title.clone();
-//
-//             let pos = utils::length_to_string(info.position / 1000);
-//             let duration = utils::length_to_string(info.length / 1000);
-//
-//             let requester_id = queue_lock.current_track.clone().unwrap().requester;
-//             let requester = ctx.cache.member(guild_id, requester_id).await;
-//
-//             let bar1 = ((info.position as f32 / info.length as f32) * 19.) as usize;
-//             let bar2 = 19 - bar1;
-//             let progress_bar = "▬".repeat(bar1) + "🔘" + &"▬".repeat(bar2);
-//
-//             embed
-//                 .title(title)
-//                 .thumbnail(format!(
-//                     "https://i.ytimg.com/vi/{}/hqdefault.jpg",
-//                     info.identifier
-//                 ))
-//                 .url(info.uri.clone())
-//                 .description(format!(
-//                     "{}\n{}\n{}/{}",
-//                     info.author, progress_bar, pos, duration
-//                 ))
-//                 .footer(|f| {
-//                     if let Some(requester) = requester {
-//                         if let Some(avatar) = requester.user.avatar_url() {
-//                             f.icon_url(avatar);
-//                         }
-//                         f.text(format!("Requested by {}", requester.user.tag()))
-//                     } else {
-//                         f.text(format!("Requested by {}", requester_id.0))
-//                     }
-//                 });
-//         }
-//     }
-//
-//     msg.channel_id
-//         .send_message(ctx, |m| m.set_embed(embed))
-//         .await?;
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(q, list, ls)]
-// async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let mut page = args.parse::<usize>().unwrap_or(1);
-//     if page == 0 {
-//         page = 1;
-//     }
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let queue_lock = queue.lock().await;
-//
-//     let (tracklist, info) = queue_lock.tracklist(page - 1);
-//     let mut embed = CreateEmbed::default();
-//     embed.title("Queue").description(tracklist);
-//     if let Some((page, page_count, track_count, length)) = info {
-//         embed.footer(|f| {
-//             f.text(format!(
-//                 "Page {}/{} | Total queue length: {} {} ({})",
-//                 page + 1,
-//                 page_count,
-//                 track_count,
-//                 if track_count == 1 { "track" } else { "tracks" },
-//                 utils::length_to_string(length.as_secs())
-//             ))
-//         });
-//     }
-//
-//     msg.channel_id
-//         .send_message(ctx, |m| m.set_embed(embed))
-//         .await?;
-//
-//     Ok(())
-// }
-//
-// #[command]
-// #[aliases(mq)]
-// async fn myqueue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-//     let mut page = args.parse::<usize>().unwrap_or(1);
-//     if page == 0 {
-//         page = 1;
-//     }
-//     let guild_id = msg.guild_id.unwrap();
-//
-//     let queue = Queue::get(ctx, guild_id).await;
-//     let queue_lock = queue.lock().await;
-//     let (tracklist, info) = queue_lock.user_tracklist(msg.author.id, page - 1);
-//     let mut embed = CreateEmbed::default();
-//     embed.title("Queue").description(tracklist);
-//     if let Some((page, page_count, track_count, length)) = info {
-//         embed.footer(|f| {
-//             f.text(format!(
-//                 "Page {}/{} | Total queue length: {} {} ({})",
-//                 page + 1,
-//                 page_count,
-//                 track_count,
-//                 if track_count == 1 { "track" } else { "tracks" },
-//                 utils::length_to_string(length.as_secs())
-//             ))
-//         });
-//     }
-//
-//     msg.channel_id
-//         .send_message(ctx, |m| m.set_embed(embed))
-//         .await?;
-//
-//     Ok(())
-// }
-//
+#[poise::command(slash_command)]
+pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx.guild().unwrap();
+
+    let channel_id = guild
+        .voice_states
+        .get(&ctx.author().id)
+        .and_then(|voice_state| voice_state.channel_id);
+
+    match channel_id {
+        Some(id) => {
+            utils::join(&ctx, guild.id, id, ctx.channel_id()).await?;
+            ctx.say(format!("Joined <#{id}>")).await?;
+        }
+        None => {
+            return Err(Error::JoinError(
+                "You must be in a voice channel.".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx.guild().unwrap();
+
+    let manager = songbird::get(ctx.discord())
+        .await
+        .expect("Songbird client missing")
+        .clone();
+
+    let has_handler = manager.get(guild.id).is_some();
+    let bot_id = ctx.discord().cache.current_user_id();
+
+    if has_handler {
+        let data = ctx.data();
+        let queue = data.guilds.get_queue(guild.id).await;
+        let mut queue_lock = queue.lock().await;
+        queue_lock.clean_up();
+        let lava = &data.lavalink;
+
+        lava.destroy(guild.id).await?;
+        manager.remove(guild.id).await?;
+    } else if guild.voice_states.get(&bot_id).is_some() {
+        guild
+            .member(ctx.discord(), bot_id)
+            .await
+            .unwrap()
+            .disconnect_from_voice(ctx.discord())
+            .await?;
+    } else {
+        return Err("Not in voice chat".into());
+    }
+    ctx.say("Disconnected").await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn play(
+    ctx: Context<'_>,
+    #[description = "Name/link to a song"] mut query: String,
+) -> Result<(), Error> {
+    let (lava, queue) = utils::voice_check(&ctx, true).await?;
+    let data = ctx.data();
+    if query.contains("open.spotify.com") {
+        let spotify = &data.spotify;
+        let reg =
+            Regex::new(r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$")
+                .unwrap();
+        let capture = reg.captures(&query).unwrap();
+        if capture.len() < 3 {
+            return Err("Invalid spotify url".into());
+        }
+        if &capture[2] != "track" {
+            return Err("Use the `playlist` command to queue an album or a playlist".into());
+        }
+        let id = &capture[3];
+        let id = TrackId::from_id(id)?;
+        let track = spotify.track(&id).await?;
+        query = format!("{} - {}", track.artists[0].name, track.name);
+    }
+    let mut query_result = lava.auto_search_tracks(query).await?;
+
+    if query_result.tracks.is_empty() {
+        return Err("No matching videos found".into());
+    }
+    let track = query_result.tracks.remove(0);
+    let info = track.info.clone();
+    queue
+        .lock()
+        .await
+        .enqueue(QueuedTrack::new_initialized(track, ctx.author().id), lava)
+        .await?;
+
+    let title = info.map(|info| info.title);
+
+    ctx.send(|m| {
+        m.embed(|e| {
+            e.description(format!(
+                "{} added to the queue",
+                title.clone().unwrap_or_else(|| "Track".to_string())
+            ))
+        })
+    })
+    .await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn playlist(
+    ctx: Context<'_>,
+    #[description = "Playlist URL"] query: String,
+) -> Result<(), Error> {
+    ctx.defer().await?;
+    let mut tracks: Vec<QueuedTrack> = Vec::new();
+
+    let (lava, queue) = utils::voice_check(&ctx, true).await?;
+    let user_id = ctx.author().id;
+    if query.contains("open.spotify.com") {
+        let data = ctx.data();
+        let spotify = &data.spotify;
+        let reg =
+            Regex::new(r"^(https://open.spotify.com/)(playlist|album|track)/([a-zA-Z0-9]+)(.*)$")
+                .unwrap();
+        let capture = reg.captures(&query).unwrap();
+        if capture.len() < 3 {
+            return Err("Invalid spotify url".into());
+        }
+        if &capture[2] == "track" {
+            return Err("Use the `play` command to queue a single track".into());
+        }
+        let id = &capture[3];
+        let mut offset = 0;
+        if &capture[2] == "album" {
+            let limit = 50;
+            let id = AlbumId::from_id(id)?;
+            loop {
+                let album = spotify
+                    .album_track_manual(&id, Some(limit), Some(offset))
+                    .await?;
+
+                for track in album.items {
+                    let title = track.name;
+                    let artist = track.artists[0].name.clone();
+                    let length = track.duration;
+                    let query = format!("{} - {}", &artist, &title);
+                    tracks.push(QueuedTrack::new(query, artist, length, user_id));
+                }
+
+                if album.next.is_none() {
+                    break;
+                }
+                offset += limit;
+            }
+        } else {
+            let limit = 100;
+            let id = PlaylistId::from_id(id)?;
+
+            loop {
+                let playlist = spotify
+                    .playlist_items_manual(&id, None, None, Some(limit), Some(offset))
+                    .await?;
+
+                for item in playlist.items {
+                    if let Some(rspotify::model::PlayableItem::Track(track)) = item.track {
+                        let title = track.name;
+                        let artist = track.artists[0].name.clone();
+                        let length = track.duration;
+                        let query = format!("{} - {}", &artist, &title);
+                        tracks.push(QueuedTrack::new(query, artist, length, user_id));
+                    }
+                }
+
+                if playlist.next.is_none() {
+                    break;
+                }
+                offset += limit;
+            }
+        }
+    } else {
+        let query_result = lava.get_tracks(query).await?;
+        for track in query_result.tracks {
+            tracks.push(QueuedTrack::new_initialized(track, user_id));
+        }
+    }
+
+    if tracks.is_empty() {
+        return Err("No matching videos found".into());
+    }
+    let amount = tracks.len();
+    if queue
+        .lock()
+        .await
+        .enqueue_multiple(tracks, lava)
+        .await
+        .is_err()
+    {
+        return Err("Error queuing the tracks".into());
+    }
+
+    ctx.send(|m| m.embed(|e| e.description(format!("Added {} tracks to the queue", amount))))
+        .await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn search(
+    ctx: Context<'_>,
+    #[description = "Search query"] query: String,
+) -> Result<(), Error> {
+    let (lava, queue) = utils::voice_check(&ctx, true).await?;
+    let mut query_result = lava.search_tracks(query).await?;
+
+    if query_result.tracks.is_empty() {
+        return Err("No videos found".into());
+    }
+    query_result.tracks.truncate(5);
+
+    let mut results = String::new();
+    for (i, track) in query_result.tracks.iter().enumerate() {
+        let info = track.info.as_ref().unwrap();
+        let title = info.title.clone();
+        let length = info.length / 1000;
+
+        results += &format!(
+            "{}. {} [{}]\n",
+            i + 1,
+            title,
+            utils::length_to_string(length)
+        );
+    }
+
+    let uuid = ctx.id() as usize;
+    let msg = ctx
+        .send(|m| {
+            m.embed(|e| e.title("Search results").description(results))
+                .components(|c| {
+                    c.create_action_row(|r| {
+                        for i in 0..query_result.tracks.len() {
+                            r.create_button(|b| {
+                                b.style(ButtonStyle::Primary)
+                                    .label(i + 1)
+                                    .custom_id(uuid + i)
+                            });
+                        }
+                        r
+                    })
+                })
+        })
+        .await?
+        .unwrap()
+        .message()
+        .await?;
+    let user_id = ctx.author().id;
+
+    if let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
+        .author_id(user_id)
+        .message_id(msg.id)
+        .collect_limit(1)
+        .timeout(Duration::from_secs(30))
+        .await
+    {
+        let choice = mci.data.custom_id.parse::<usize>().unwrap() - uuid;
+        let track = query_result.tracks.remove(choice);
+        let info = track.info.clone();
+        let title = info.map(|info| info.title);
+        queue
+            .lock()
+            .await
+            .enqueue(QueuedTrack::new_initialized(track, msg.author.id), lava)
+            .await?;
+
+        mci.create_interaction_response(ctx.discord(), |r| {
+            r.kind(InteractionResponseType::UpdateMessage)
+                .interaction_response_data(|d| {
+                    d.content(format!(
+                        "{} added to queue.",
+                        title.unwrap_or_else(|| "Track".to_string())
+                    ))
+                    .components(|c| c.set_action_rows(Vec::default()))
+                    .embeds([])
+                })
+        })
+        .await?;
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn nowplaying(ctx: Context<'_>) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap();
+    let data = ctx.data();
+
+    let queue = data.guilds.get_queue(guild_id).await;
+    let queue_lock = queue.lock().await;
+    let lava = &data.lavalink;
+    let nodes = lava.nodes().await;
+    let node = nodes.get(guild_id.as_u64());
+
+    let mut embed = CreateEmbed::default();
+    embed
+        .author(|a| a.name("Now playing"))
+        .title("No track currently playing.");
+
+    if let Some(node) = node {
+        if let Some(track) = &node.now_playing {
+            let info = track.track.info.as_ref().unwrap();
+            let title = info.title.clone();
+
+            let pos = utils::length_to_string(info.position / 1000);
+            let duration = utils::length_to_string(info.length / 1000);
+
+            let requester_id = queue_lock.current_track.clone().unwrap().requester;
+            let requester = ctx.discord().cache.member(guild_id, requester_id);
+
+            let bar1 = ((info.position as f32 / info.length as f32) * 19.) as usize;
+            let bar2 = 19 - bar1;
+            let progress_bar = "▬".repeat(bar1) + "🔘" + &"▬".repeat(bar2);
+
+            embed
+                .title(title)
+                .thumbnail(format!(
+                    "https://i.ytimg.com/vi/{}/hqdefault.jpg",
+                    info.identifier
+                ))
+                .url(info.uri.clone())
+                .description(format!(
+                    "{}\n{}\n{}/{}",
+                    info.author, progress_bar, pos, duration
+                ))
+                .footer(|f| {
+                    if let Some(requester) = requester {
+                        if let Some(avatar) = requester.user.avatar_url() {
+                            f.icon_url(avatar);
+                        }
+                        f.text(format!("Requested by {}", requester.user.tag()))
+                    } else {
+                        f.text(format!("Requested by {}", requester_id.0))
+                    }
+                });
+        }
+    }
+
+    ctx.send(|m| {
+        m.embeds.push(embed);
+        m
+    })
+    .await?;
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn queue(
+    ctx: Context<'_>,
+    #[description = "Page"]
+    #[min = 1]
+    page: Option<usize>,
+) -> Result<(), Error> {
+    let page = page.unwrap_or(1);
+    let guild_id = ctx.guild_id().unwrap();
+    let data = ctx.data();
+    let queue = data.guilds.get_queue(guild_id).await;
+    let queue_lock = queue.lock().await;
+
+    let (tracklist, info) = queue_lock.tracklist(page - 1);
+    let mut embed = CreateEmbed::default();
+    embed.title("Queue").description(tracklist);
+    if let Some((page, page_count, track_count, length)) = info {
+        embed.footer(|f| {
+            f.text(format!(
+                "Page {}/{} | Total queue length: {} {} ({})",
+                page + 1,
+                page_count,
+                track_count,
+                if track_count == 1 { "track" } else { "tracks" },
+                utils::length_to_string(length.as_secs())
+            ))
+        });
+    }
+
+    ctx.send(|m| {
+        m.embeds.push(embed);
+        m
+    })
+    .await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn myqueue(
+    ctx: Context<'_>,
+    #[description = "Page"]
+    #[min = 1]
+    page: Option<usize>,
+) -> Result<(), Error> {
+    let page = page.unwrap_or(1);
+    let guild_id = ctx.guild_id().unwrap();
+    let data = ctx.data();
+    let queue = data.guilds.get_queue(guild_id).await;
+    let queue_lock = queue.lock().await;
+    let (tracklist, info) = queue_lock.user_tracklist(ctx.author().id, page - 1);
+    let mut embed = CreateEmbed::default();
+    embed.title("Queue").description(tracklist);
+    if let Some((page, page_count, track_count, length)) = info {
+        embed.footer(|f| {
+            f.text(format!(
+                "Page {}/{} | Total queue length: {} {} ({})",
+                page + 1,
+                page_count,
+                track_count,
+                if track_count == 1 { "track" } else { "tracks" },
+                utils::length_to_string(length.as_secs())
+            ))
+        });
+    }
+
+    ctx.send(|m| {
+        m.embeds.push(embed);
+        m
+    })
+    .await?;
+
+    Ok(())
+}
+
 // #[command]
 // #[aliases(c)]
 // async fn clear(ctx: &Context, msg: &Message) -> CommandResult {

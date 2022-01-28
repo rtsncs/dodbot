@@ -46,26 +46,22 @@ impl QueuedTrack {
         }
     }
 
-    pub async fn init(&mut self, lava: &LavalinkClient) -> Result<Track, ()> {
+    pub async fn init(&mut self, lava: &LavalinkClient) -> Result<Track, crate::error::Error> {
         match &self.lava_track {
             Some(track) => Ok(track.clone()),
             None => {
-                let query_result = lava.auto_search_tracks(&self.query).await;
-                if let Ok(query_result) = query_result {
-                    if query_result.tracks.is_empty() {
-                        return Err(());
-                    }
-                    let track = query_result.tracks[0].clone();
-                    let info = track.info.clone().unwrap();
-                    self.query = info.uri;
-                    self.title = info.title;
-                    self.artist = info.author;
-                    self.length = Duration::from_millis(info.length);
-                    self.lava_track = Some(track.clone());
-                    Ok(track)
-                } else {
-                    Err(())
+                let query_result = lava.auto_search_tracks(&self.query).await?;
+                if query_result.tracks.is_empty() {
+                    return Err("No matching videos found.".into());
                 }
+                let track = query_result.tracks[0].clone();
+                let info = track.info.clone().unwrap();
+                self.query = info.uri;
+                self.title = info.title;
+                self.artist = info.author;
+                self.length = Duration::from_millis(info.length);
+                self.lava_track = Some(track.clone());
+                Ok(track)
             }
         }
     }
@@ -125,16 +121,11 @@ impl Queue {
         &mut self,
         mut track: QueuedTrack,
         lava: LavalinkClient,
-    ) -> Result<(), ()> {
+    ) -> Result<(), crate::error::Error> {
         if self.current_track.is_none() {
-            if let Ok(lava_track) = track.init(&lava).await {
-                if lava.play(self.guild_id, lava_track).queue().await.is_err() {
-                    return Err(());
-                }
-                self.current_track = Some(track);
-            } else {
-                return Err(());
-            }
+            let lava_track = track.init(&lava).await?;
+            lava.play(self.guild_id, lava_track).queue().await?;
+            self.current_track = Some(track);
         } else if self.round_robin {
             let user = track.requester;
             let queue = self.user_queues.get_mut(&user);
