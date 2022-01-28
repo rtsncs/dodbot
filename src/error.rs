@@ -1,8 +1,7 @@
 use async_minecraft_ping::ServerError as MinecraftError;
 use lavalink_rs::error::LavalinkError;
 use reqwest::Error as ReqwestError;
-use rspotify::model::idtypes::IdError as SpotifyIdError;
-use rspotify::ClientError as SpotifyClientError;
+use rspotify::{model::idtypes::IdError as SpotifyIdError, ClientError as SpotifyClientError};
 use serenity::prelude::SerenityError;
 use songbird::error::JoinError as SongbirdError;
 use sqlx::Error as SqlxError;
@@ -17,8 +16,8 @@ pub enum Error {
     Songbird(SongbirdError),
     Spotify(String),
 
-    JoinError(String),
-    CommandError(String),
+    Join(String),
+    Command(String),
 }
 
 impl std::fmt::Display for Error {
@@ -32,8 +31,8 @@ impl std::fmt::Display for Error {
             Self::Songbird(err) => write!(f, "Songbird error: {err}"),
             Self::Spotify(err) => write!(f, "Spotify error: {err}"),
 
-            Self::JoinError(err) => write!(f, "Error joining voice channel: {err}"),
-            Self::CommandError(err) => write!(f, "Error: {err}"),
+            Self::Join(err) => write!(f, "Error joining voice channel: {err}"),
+            Self::Command(err) => write!(f, "Error: {err}"),
         }
     }
 }
@@ -65,7 +64,7 @@ impl From<SqlxError> for Error {
 }
 impl From<&str> for Error {
     fn from(err: &str) -> Self {
-        Self::CommandError(err.to_string())
+        Self::Command(err.to_string())
     }
 }
 impl From<SongbirdError> for Error {

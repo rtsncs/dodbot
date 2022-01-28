@@ -1,7 +1,6 @@
 use lavalink_rs::{error::LavalinkResult, model::Track, LavalinkClient};
 use rand::prelude::SliceRandom;
 use serenity::{
-    client::Context,
     http::Http,
     model::id::{ChannelId, GuildId, UserId},
     prelude::Mutex,
@@ -67,11 +66,20 @@ impl QueuedTrack {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, poise::SlashChoiceParameter, Clone, Copy)]
 pub enum LoopModes {
     None,
     Song,
     Queue,
+}
+impl std::fmt::Display for LoopModes {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::None => write!(f, "off"),
+            Self::Song => write!(f, "song"),
+            Self::Queue => write!(f, "queue"),
+        }
+    }
 }
 
 struct UserQueue {
