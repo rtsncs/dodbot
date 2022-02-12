@@ -1,7 +1,7 @@
 use crate::{error::Error, Context};
 use serenity::model::prelude::ChannelType::Voice;
 
-#[poise::command(slash_command, owners_only)]
+#[poise::command(slash_command, owners_only, category = "Admin")]
 pub async fn roundrobin(
     ctx: Context<'_>,
     #[description = "On/Off"] setting: bool,
@@ -33,7 +33,7 @@ pub async fn roundrobin(
     Ok(())
 }
 
-#[poise::command(slash_command, owners_only)]
+#[poise::command(slash_command, owners_only, category = "Admin")]
 pub async fn minecraftchannel(
     ctx: Context<'_>,
     #[description = "IP address"] address: String,
