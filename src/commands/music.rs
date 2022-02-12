@@ -382,20 +382,25 @@ pub async fn queue(
     #[min = 1]
     page: Option<usize>,
 ) -> Result<(), Error> {
-    let page = page.unwrap_or(1);
+    let mut page = page.unwrap_or(1);
+    let mut page_count = 1;
     let guild_id = ctx.guild_id().unwrap();
     let data = ctx.data();
     let queue = data.guilds.get_queue(guild_id).await;
-    let queue_lock = queue.lock().await;
 
+    let queue_lock = queue.lock().await;
     let (tracklist, info) = queue_lock.tracklist(page - 1);
+    drop(queue_lock);
+
     let mut embed = CreateEmbed::default();
     embed.title("Queue").description(tracklist);
-    if let Some((page, page_count, track_count, length)) = info {
+    if let Some((page_ret, page_count_ret, track_count, length)) = info {
+        page = page_ret + 1;
+        page_count = page_count_ret;
         embed.footer(|f| {
             f.text(format!(
                 "Page {}/{} | Total queue length: {} {} ({})",
-                page + 1,
+                page,
                 page_count,
                 track_count,
                 if track_count == 1 { "track" } else { "tracks" },
@@ -404,11 +409,73 @@ pub async fn queue(
         });
     }
 
-    ctx.send(|m| {
-        m.embeds.push(embed);
-        m
-    })
-    .await?;
+    let uuid = ctx.id() as usize;
+    let msg = ctx
+        .send(|m| {
+            m.embeds.push(embed);
+            if page_count > 1 {
+                m.components(|c| {
+                    c.create_action_row(|r| {
+                        r.create_button(|b| {
+                            b.style(ButtonStyle::Primary).label("<").custom_id(uuid)
+                        });
+                        r.create_button(|b| {
+                            b.style(ButtonStyle::Primary).label(">").custom_id(uuid + 1)
+                        });
+                        r
+                    })
+                });
+            }
+            m
+        })
+        .await?
+        .unwrap()
+        .message()
+        .await?;
+    let user_id = ctx.author().id;
+
+    while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
+        .author_id(user_id)
+        .message_id(msg.id)
+        .timeout(Duration::from_secs(30))
+        .await
+    {
+        let choice = mci.data.custom_id.parse::<usize>().unwrap() - uuid;
+        if choice == 0 {
+            if page >= 2 {
+                page -= 1;
+            }
+        } else {
+            page += 1
+        };
+
+        let queue_lock = queue.lock().await;
+        let (tracklist, info) = queue_lock.tracklist(page - 1);
+        drop(queue_lock);
+
+        let mut embed = CreateEmbed::default();
+        embed.title("Queue").description(tracklist);
+        if let Some((page_ret, page_count_ret, track_count, length)) = info {
+            page = page_ret + 1;
+            page_count = page_count_ret;
+            embed.footer(|f| {
+                f.text(format!(
+                    "Page {}/{} | Total queue length: {} {} ({})",
+                    page,
+                    page_count,
+                    track_count,
+                    if track_count == 1 { "track" } else { "tracks" },
+                    utils::length_to_string(length.as_secs())
+                ))
+            });
+
+            mci.create_interaction_response(ctx.discord(), |r| {
+                r.kind(InteractionResponseType::UpdateMessage)
+                    .interaction_response_data(|d| d.embeds([embed]))
+            })
+            .await?;
+        }
+    }
 
     Ok(())
 }
@@ -420,19 +487,25 @@ pub async fn myqueue(
     #[min = 1]
     page: Option<usize>,
 ) -> Result<(), Error> {
-    let page = page.unwrap_or(1);
+    let mut page = page.unwrap_or(1);
+    let mut page_count = 1;
     let guild_id = ctx.guild_id().unwrap();
     let data = ctx.data();
     let queue = data.guilds.get_queue(guild_id).await;
+
     let queue_lock = queue.lock().await;
     let (tracklist, info) = queue_lock.user_tracklist(ctx.author().id, page - 1);
+    drop(queue_lock);
+
     let mut embed = CreateEmbed::default();
     embed.title("Queue").description(tracklist);
-    if let Some((page, page_count, track_count, length)) = info {
+    if let Some((page_ret, page_count_ret, track_count, length)) = info {
+        page = page_ret + 1;
+        page_count = page_count_ret;
         embed.footer(|f| {
             f.text(format!(
                 "Page {}/{} | Total queue length: {} {} ({})",
-                page + 1,
+                page,
                 page_count,
                 track_count,
                 if track_count == 1 { "track" } else { "tracks" },
@@ -441,11 +514,73 @@ pub async fn myqueue(
         });
     }
 
-    ctx.send(|m| {
-        m.embeds.push(embed);
-        m
-    })
-    .await?;
+    let uuid = ctx.id() as usize;
+    let msg = ctx
+        .send(|m| {
+            m.embeds.push(embed);
+            if page_count > 1 {
+                m.components(|c| {
+                    c.create_action_row(|r| {
+                        r.create_button(|b| {
+                            b.style(ButtonStyle::Primary).label("<").custom_id(uuid)
+                        });
+                        r.create_button(|b| {
+                            b.style(ButtonStyle::Primary).label(">").custom_id(uuid + 1)
+                        });
+                        r
+                    })
+                });
+            }
+            m
+        })
+        .await?
+        .unwrap()
+        .message()
+        .await?;
+    let user_id = ctx.author().id;
+
+    while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
+        .author_id(user_id)
+        .message_id(msg.id)
+        .timeout(Duration::from_secs(30))
+        .await
+    {
+        let choice = mci.data.custom_id.parse::<usize>().unwrap() - uuid;
+        if choice == 0 {
+            if page >= 2 {
+                page -= 1;
+            }
+        } else {
+            page += 1
+        };
+
+        let queue_lock = queue.lock().await;
+        let (tracklist, info) = queue_lock.user_tracklist(user_id, page - 1);
+        drop(queue_lock);
+
+        let mut embed = CreateEmbed::default();
+        embed.title("Queue").description(tracklist);
+        if let Some((page_ret, page_count_ret, track_count, length)) = info {
+            page = page_ret + 1;
+            page_count = page_count_ret;
+            embed.footer(|f| {
+                f.text(format!(
+                    "Page {}/{} | Total queue length: {} {} ({})",
+                    page,
+                    page_count,
+                    track_count,
+                    if track_count == 1 { "track" } else { "tracks" },
+                    utils::length_to_string(length.as_secs())
+                ))
+            });
+
+            mci.create_interaction_response(ctx.discord(), |r| {
+                r.kind(InteractionResponseType::UpdateMessage)
+                    .interaction_response_data(|d| d.embeds([embed]))
+            })
+            .await?;
+        }
+    }
 
     Ok(())
 }
