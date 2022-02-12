@@ -74,8 +74,12 @@ impl Data {
             id: config.spotify_id,
             secret: Some(config.spotify_secret),
         };
+        let spotify_config = rspotify::Config {
+            token_refreshing: true,
+            ..Default::default()
+        };
 
-        let mut spotify = ClientCredsSpotify::new(spotify_creds);
+        let mut spotify = ClientCredsSpotify::with_config(spotify_creds, spotify_config);
         spotify.request_token().await.unwrap();
 
         let genius = GeniusClient::new(config.genius_token);
