@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: config::Config = toml::from_str(&std::fs::read_to_string("config.toml")?)?;
     let options = poise::FrameworkOptions {
         commands: vec![
+            commands::general::help(),
             register(),
             commands::admin::roundrobin(),
             commands::admin::minecraftchannel(),

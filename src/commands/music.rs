@@ -17,7 +17,7 @@ use serenity::{
 };
 use std::time::Duration;
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
     let guild = ctx.guild().unwrap();
@@ -40,7 +40,7 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     let guild = ctx.guild().unwrap();
 
@@ -76,7 +76,7 @@ pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn play(
     ctx: Context<'_>,
     #[description = "Name/link to a song"] mut query: String,
@@ -129,7 +129,7 @@ pub async fn play(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn playlist(
     ctx: Context<'_>,
     #[description = "Playlist URL"] query: String,
@@ -227,7 +227,7 @@ pub async fn playlist(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn search(
     ctx: Context<'_>,
     #[description = "Search query"] query: String,
@@ -292,7 +292,7 @@ pub async fn search(
         queue
             .lock()
             .await
-            .enqueue(QueuedTrack::new_initialized(track, msg.author.id), lava)
+            .enqueue(QueuedTrack::new_initialized(track, user_id), lava)
             .await?;
 
         mci.create_interaction_response(ctx.discord(), |r| {
@@ -312,7 +312,7 @@ pub async fn search(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn nowplaying(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let data = ctx.data();
@@ -375,7 +375,7 @@ pub async fn nowplaying(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn queue(
     ctx: Context<'_>,
     #[description = "Page"]
@@ -413,7 +413,7 @@ pub async fn queue(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn myqueue(
     ctx: Context<'_>,
     #[description = "Page"]
@@ -450,7 +450,7 @@ pub async fn myqueue(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 
@@ -462,7 +462,7 @@ pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     let (lava, queue) = utils::voice_check(&ctx, false).await?;
     if queue.lock().await.stop(lava).await.is_err() {
@@ -473,7 +473,7 @@ pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn remove(
     ctx: Context<'_>,
     #[description = "Index"]
@@ -499,7 +499,7 @@ pub async fn remove(
     Ok(())
 }
 
-#[poise::command(slash_command, rename = "move")]
+#[poise::command(slash_command, rename = "move", category = "Music")]
 pub async fn mv(
     ctx: Context<'_>,
     #[description = "From"]
@@ -532,7 +532,7 @@ pub async fn mv(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn swap(
     ctx: Context<'_>,
     #[description = "First"]
@@ -564,7 +564,7 @@ pub async fn swap(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
     let (lava, queue) = utils::voice_check(&ctx, false).await?;
     queue.lock().await.skip(lava).await?;
@@ -573,7 +573,7 @@ pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
     let (_, queue) = utils::voice_check(&ctx, false).await?;
     let mut queue_lock = queue.lock().await;
@@ -583,7 +583,7 @@ pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn seek(
     ctx: Context<'_>,
     #[description = "Time in seconds"] time: u64,
@@ -597,7 +597,7 @@ pub async fn seek(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let (lava, _) = utils::voice_check(&ctx, false).await?;
@@ -607,7 +607,7 @@ pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let (lava, _) = utils::voice_check(&ctx, false).await?;
@@ -617,7 +617,7 @@ pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command, rename = "loop")]
+#[poise::command(slash_command, rename = "loop", category = "Music")]
 pub async fn repeat(
     ctx: Context<'_>,
     #[description = "Mode"] mode: LoopModes,
@@ -630,7 +630,7 @@ pub async fn repeat(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn volume(
     ctx: Context<'_>,
     #[description = "Volume"]
@@ -646,7 +646,7 @@ pub async fn volume(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, category = "Music")]
 pub async fn lyrics(ctx: Context<'_>, #[description = "Query"] query: String) -> Result<(), Error> {
     let genius = &ctx.data().genius;
 
