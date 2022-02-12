@@ -22,7 +22,8 @@ default-features = false
 features = ["serenity-rustls", "gateway"]
 
 [dependencies.lavalink-rs]
-version = "0.9.0-rc"
+git = "https://gitlab.com/vicky5124/lavalink-rs"
+branch = "master"
 features = ["rustls", "serenity"]
 
 [dependencies.sqlx]
