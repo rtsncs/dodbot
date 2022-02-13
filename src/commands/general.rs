@@ -2,6 +2,7 @@ use crate::{error::Error, Context};
 use async_minecraft_ping::ConnectionConfig;
 use serenity::{builder::CreateEmbed, client::bridge::gateway::ShardId};
 use std::time::Instant;
+use systemstat::{saturating_sub_bytes, Platform, System};
 
 #[poise::command(slash_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
@@ -105,5 +106,59 @@ pub async fn help(
         ..Default::default()
     };
     poise::builtins::help(ctx, command.as_deref(), config).await?;
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn vps(ctx: Context<'_>) -> Result<(), Error> {
+    let sys = System::new();
+    let memory = match sys.memory() {
+        Ok(mem) => format!(
+            "\nMemory: {} used / {} total",
+            saturating_sub_bytes(mem.total, mem.free),
+            mem.total,
+        ),
+        Err(err) => format!("\nMemory: error: {err}"),
+    };
+    let cpu_load = match sys.load_average() {
+        Ok(load) => format!(
+            "\nLoad average: {} {} {}",
+            load.one, load.five, load.fifteen
+        ),
+        Err(err) => format!("\nLoad average: error: {err}"),
+    };
+    let uptime = match sys.uptime() {
+        Ok(uptime) => {
+            const MINUTE: u64 = 60;
+            const HOUR: u64 = MINUTE * 60;
+            const DAY: u64 = HOUR * 24;
+            let seconds = uptime.as_secs();
+            let str = if uptime.as_secs() >= DAY {
+                format!(
+                    "{}d{}h{}m",
+                    seconds / DAY,
+                    seconds % DAY / HOUR,
+                    seconds % HOUR / MINUTE
+                )
+            } else if seconds >= HOUR {
+                format!("{}h{}m", seconds / HOUR, seconds % HOUR / MINUTE,)
+            } else if seconds >= MINUTE {
+                format!("{}m{}s", seconds / MINUTE, seconds % MINUTE)
+            } else {
+                format!("{}s", seconds)
+            };
+            "\nUptime: ".to_string() + &str
+        }
+        Err(err) => format!("\nUptime: error: {err}"),
+    };
+
+    ctx.send(|m| {
+        m.embed(|e| {
+            e.title("System stats")
+                .description(memory + &cpu_load + &uptime)
+        })
+    })
+    .await?;
+
     Ok(())
 }

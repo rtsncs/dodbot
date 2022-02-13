@@ -47,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             commands::admin::minecraftchannel(),
             commands::general::ping(),
             commands::general::minecraft(),
+            commands::general::vps(),
             commands::music::join(),
             commands::music::leave(),
             commands::music::play(),

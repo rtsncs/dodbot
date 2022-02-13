@@ -46,7 +46,7 @@ rspotify = "0.11.3"
 poise = { git="https://github.com/kangalioo/poise" }
 serde_derive = "1.0.136"
 serde = "1.0.136"
-
+systemstat = "0.1.10"
 
 [patch.crates-io.serenity]
 git = "https://github.com/serenity-rs/serenity"
