@@ -19,7 +19,7 @@ pub struct LavalinkHandler {
 pub async fn event_listener(
     ctx: &Context,
     event: &poise::Event<'_>,
-    _framework: &poise::Framework<Data, Error>,
+    _framework: &poise::FrameworkContext<'_, Data, Error>,
     data: &Data,
 ) -> Result<(), Error> {
     if let poise::Event::VoiceStateUpdate { old, new } = event {
@@ -52,15 +52,19 @@ pub async fn event_listener(
                             event,
                         };
 
-                        let lava_inner = lava.inner.lock();
+                        let socket;
+                        {
+                            let lava_inner = lava.inner.lock();
+                            socket = lava_inner.socket_sender.read().as_ref().unwrap().clone();
+                        }
+
                         if SendOpcode::VoiceUpdate(payload)
-                            .send(guild_id, lava_inner.socket_write.lock().as_mut().unwrap())
+                            .send(guild_id, socket)
                             .await
                             .is_err()
                         {
                             error!("Error updating voice channel!");
                         }
-                        drop(lava_inner);
 
                         if lava.resume(guild_id).await.is_err() {
                             error!("Error resuming track");

@@ -66,21 +66,21 @@ impl QueuedTrack {
     }
 }
 
-#[derive(PartialEq, poise::SlashChoiceParameter, Clone, Copy)]
+#[derive(PartialEq, poise::ChoiceParameter, Clone, Copy)]
 pub enum LoopModes {
     None,
     Song,
     Queue,
 }
-impl std::fmt::Display for LoopModes {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::None => write!(f, "off"),
-            Self::Song => write!(f, "song"),
-            Self::Queue => write!(f, "queue"),
-        }
-    }
-}
+// impl std::fmt::Display for LoopModes {
+//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+//         match self {
+//             Self::None => write!(f, "off"),
+//             Self::Song => write!(f, "song"),
+//             Self::Queue => write!(f, "queue"),
+//         }
+//     }
+// }
 
 struct UserQueue {
     tracks: VecDeque<QueuedTrack>,

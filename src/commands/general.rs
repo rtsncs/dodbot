@@ -14,7 +14,7 @@ pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
         let shard_manager = ctx.data().shard_manager.lock().await;
         let runners = shard_manager.runners.lock().await;
 
-        if let Some(runner) = runners.get(&ShardId(ctx.discord().shard_id)) {
+        if let Some(runner) = runners.get(&ShardId(ctx.serenity_context().shard_id)) {
             match runner.latency {
                 Some(latency) => format!("{}ms", latency.as_millis()),
                 None => "?ms".to_string(),
@@ -27,10 +27,9 @@ pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     let now = Instant::now();
     let reply_handle = ctx.say("Calculating latency...").await?;
     let post_latency = now.elapsed().as_millis();
-    let mut message = reply_handle.unwrap().message().await?;
 
-    message
-        .edit(ctx.discord(), |m| {
+    reply_handle
+        .edit(ctx, |m| {
             m.content("");
             m.embed(|e| {
                 e.title("Pong :ping_pong:");

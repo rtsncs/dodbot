@@ -83,7 +83,7 @@ impl Data {
         spotify.request_token().await.unwrap();
 
         let genius = GeniusClient::new(config.genius_token);
-        let shard_manager = framework.shard_manager();
+        let shard_manager = framework.shard_manager().clone();
         let ctx = Arc::new(ctx.clone());
         let db = database.clone();
 

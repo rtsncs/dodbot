@@ -98,7 +98,7 @@ pub async fn play(
         }
         let id = &capture[3];
         let id = TrackId::from_id(id)?;
-        let track = spotify.track(&id).await?;
+        let track = spotify.track(id).await?;
         query = format!("{} - {}", track.artists[0].name, track.name);
     }
     let mut query_result = lava.auto_search_tracks(query).await?;
@@ -159,7 +159,7 @@ pub async fn playlist(
             let id = AlbumId::from_id(id)?;
             loop {
                 let album = spotify
-                    .album_track_manual(&id, Some(limit), Some(offset))
+                    .album_track_manual(id.clone(), Some(limit), Some(offset))
                     .await?;
 
                 for track in album.items {
@@ -181,7 +181,7 @@ pub async fn playlist(
 
             loop {
                 let playlist = spotify
-                    .playlist_items_manual(&id, None, None, Some(limit), Some(offset))
+                    .playlist_items_manual(id.clone(), None, None, Some(limit), Some(offset))
                     .await?;
 
                 for item in playlist.items {
@@ -256,7 +256,7 @@ pub async fn search(
     }
 
     let uuid = ctx.id() as usize;
-    let msg = ctx
+    let handle = ctx
         .send(|m| {
             m.embed(|e| e.title("Search results").description(results))
                 .components(|c| {
@@ -272,10 +272,8 @@ pub async fn search(
                     })
                 })
         })
-        .await?
-        .unwrap()
-        .message()
         .await?;
+    let msg = handle.message().await?;
     let user_id = ctx.author().id;
 
     if let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
@@ -303,7 +301,7 @@ pub async fn search(
                         title.unwrap_or_else(|| "Track".to_string())
                     ))
                     .components(|c| c.set_action_rows(Vec::default()))
-                    .embeds([])
+                    .set_embeds([])
                 })
         })
         .await?;
@@ -410,7 +408,7 @@ pub async fn queue(
     }
 
     let uuid = ctx.id() as usize;
-    let msg = ctx
+    let handle = ctx
         .send(|m| {
             m.embeds.push(embed);
             if page_count > 1 {
@@ -428,10 +426,8 @@ pub async fn queue(
             }
             m
         })
-        .await?
-        .unwrap()
-        .message()
         .await?;
+    let msg = handle.message().await?;
     let user_id = ctx.author().id;
 
     while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
@@ -471,7 +467,7 @@ pub async fn queue(
 
             mci.create_interaction_response(ctx.discord(), |r| {
                 r.kind(InteractionResponseType::UpdateMessage)
-                    .interaction_response_data(|d| d.embeds([embed]))
+                    .interaction_response_data(|d| d.set_embeds([embed]))
             })
             .await?;
         }
@@ -515,7 +511,7 @@ pub async fn myqueue(
     }
 
     let uuid = ctx.id() as usize;
-    let msg = ctx
+    let handle = ctx
         .send(|m| {
             m.embeds.push(embed);
             if page_count > 1 {
@@ -533,10 +529,8 @@ pub async fn myqueue(
             }
             m
         })
-        .await?
-        .unwrap()
-        .message()
         .await?;
+    let msg = handle.message().await?;
     let user_id = ctx.author().id;
 
     while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
@@ -576,7 +570,7 @@ pub async fn myqueue(
 
             mci.create_interaction_response(ctx.discord(), |r| {
                 r.kind(InteractionResponseType::UpdateMessage)
-                    .interaction_response_data(|d| d.embeds([embed]))
+                    .interaction_response_data(|d| d.set_embeds([embed]))
             })
             .await?;
         }

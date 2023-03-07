@@ -71,33 +71,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             commands::music::lyrics(),
         ],
         pre_command: |ctx| Box::pin(async move { before(ctx) }),
-        listener: |ctx, event, framework, data| {
-            Box::pin(async move { events::event_listener(ctx, event, framework, data).await })
+        event_handler: |ctx, event, framework, data| {
+            Box::pin(async move { events::event_listener(ctx, event, &framework, data).await })
         },
         ..Default::default()
     };
-    let framework = poise::Framework::build()
+    poise::Framework::builder()
         .token(&config.token)
         .options(options)
-        .user_data_setup(move |ctx, ready, framework| {
+        .setup(move |ctx, ready, framework| {
             Box::pin(async move { shared_data::Data::new(ctx, ready, framework, config).await })
         })
         .client_settings(|c| c.register_songbird())
-        .build()
+        .intents(serenity::prelude::GatewayIntents::non_privileged())
+        .run()
         .await?;
 
-    let shard_manager = framework.shard_manager();
-    tokio::spawn(async move {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Error registering ctrl+c handler");
-        tracing::info!("Shutting down!");
-        shard_manager.lock().await.shutdown_all().await;
-    });
-
-    if let Err(why) = framework.start().await {
-        tracing::error!("Error running client: {}", why);
-    }
+    // let shard_manager = framework.shard_manager();
+    // tokio::spawn(async move {
+    //     tokio::signal::ctrl_c()
+    //         .await
+    //         .expect("Error registering ctrl+c handler");
+    //     tracing::info!("Shutting down!");
+    //     shard_manager.lock().await.shutdown_all().await;
+    // });
+    //
+    // if let Err(why) = framework.start().await {
+    //     tracing::error!("Error running client: {}", why);
+    // }
 
     Ok(())
 }
