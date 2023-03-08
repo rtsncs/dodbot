@@ -9,11 +9,11 @@ use crate::{
 use regex::Regex;
 use rspotify::{
     clients::BaseClient,
-    model::{AlbumId, Id, PlaylistId, TrackId},
+    model::{AlbumId, PlaylistId, TrackId},
 };
 use serenity::{
-    builder::CreateEmbed,
-    model::interactions::{message_component::ButtonStyle, InteractionResponseType},
+    builder::CreateEmbed, model::application::component::ButtonStyle,
+    model::application::interaction::InteractionResponseType,
 };
 use std::time::Duration;
 
@@ -44,13 +44,13 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     let guild = ctx.guild().unwrap();
 
-    let manager = songbird::get(ctx.discord())
+    let manager = songbird::get(ctx.serenity_context())
         .await
         .expect("Songbird client missing")
         .clone();
 
     let has_handler = manager.get(guild.id).is_some();
-    let bot_id = ctx.discord().cache.current_user_id();
+    let bot_id = ctx.serenity_context().cache.current_user_id();
 
     if has_handler {
         let data = ctx.data();
@@ -63,10 +63,10 @@ pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
         manager.remove(guild.id).await?;
     } else if guild.voice_states.get(&bot_id).is_some() {
         guild
-            .member(ctx.discord(), bot_id)
+            .member(ctx, bot_id)
             .await
             .unwrap()
-            .disconnect_from_voice(ctx.discord())
+            .disconnect_from_voice(ctx)
             .await?;
     } else {
         return Err("Not in voice chat".into());
@@ -276,7 +276,7 @@ pub async fn search(
     let msg = handle.message().await?;
     let user_id = ctx.author().id;
 
-    if let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
+    if let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx)
         .author_id(user_id)
         .message_id(msg.id)
         .collect_limit(1)
@@ -293,7 +293,7 @@ pub async fn search(
             .enqueue(QueuedTrack::new_initialized(track, user_id), lava)
             .await?;
 
-        mci.create_interaction_response(ctx.discord(), |r| {
+        mci.create_interaction_response(ctx, |r| {
             r.kind(InteractionResponseType::UpdateMessage)
                 .interaction_response_data(|d| {
                     d.content(format!(
@@ -335,7 +335,7 @@ pub async fn nowplaying(ctx: Context<'_>) -> Result<(), Error> {
             let duration = utils::length_to_string(info.length / 1000);
 
             let requester_id = queue_lock.current_track.clone().unwrap().requester;
-            let requester = ctx.discord().cache.member(guild_id, requester_id);
+            let requester = ctx.serenity_context().cache.member(guild_id, requester_id);
 
             let bar1 = ((info.position as f32 / info.length as f32) * 19.) as usize;
             let bar2 = 19 - bar1;
@@ -430,7 +430,7 @@ pub async fn queue(
     let msg = handle.message().await?;
     let user_id = ctx.author().id;
 
-    while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
+    while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx)
         .author_id(user_id)
         .message_id(msg.id)
         .timeout(Duration::from_secs(30))
@@ -465,7 +465,7 @@ pub async fn queue(
                 ))
             });
 
-            mci.create_interaction_response(ctx.discord(), |r| {
+            mci.create_interaction_response(ctx, |r| {
                 r.kind(InteractionResponseType::UpdateMessage)
                     .interaction_response_data(|d| d.set_embeds([embed]))
             })
@@ -533,7 +533,7 @@ pub async fn myqueue(
     let msg = handle.message().await?;
     let user_id = ctx.author().id;
 
-    while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx.discord())
+    while let Some(mci) = serenity::collector::CollectComponentInteraction::new(ctx)
         .author_id(user_id)
         .message_id(msg.id)
         .timeout(Duration::from_secs(30))
@@ -568,7 +568,7 @@ pub async fn myqueue(
                 ))
             });
 
-            mci.create_interaction_response(ctx.discord(), |r| {
+            mci.create_interaction_response(ctx, |r| {
                 r.kind(InteractionResponseType::UpdateMessage)
                     .interaction_response_data(|d| d.set_embeds([embed]))
             })

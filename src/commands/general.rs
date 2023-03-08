@@ -73,7 +73,7 @@ pub async fn minecraft(
     if let Some(icon_base64) = &connection.status.favicon {
         let icon_base64 = &icon_base64[22..].replace('\n', "");
         if let Ok(icon) = base64::decode(icon_base64) {
-            let path = format!("mc_icon_{}.png", args.replace('.', "").replace(':', ""));
+            let path = format!("mc_icon_{}.png", args.replace(['.', ':'], ""));
             if std::fs::write(&path, icon).is_ok() {
                 embed.thumbnail(format!("attachment://{}", &path));
                 ctx.send(|m| {

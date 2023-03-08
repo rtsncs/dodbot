@@ -52,7 +52,7 @@ pub async fn minecraftchannel(
     let connection = connection.status().await?;
 
     let channel = guild
-        .create_channel(ctx.discord(), |c| {
+        .create_channel(ctx, |c| {
             c.kind(Voice).name(name.replace(
                 '$',
                 &format!(

@@ -79,7 +79,7 @@ impl Data {
             ..Default::default()
         };
 
-        let mut spotify = ClientCredsSpotify::with_config(spotify_creds, spotify_config);
+        let spotify = ClientCredsSpotify::with_config(spotify_creds, spotify_config);
         spotify.request_token().await.unwrap();
 
         let genius = GeniusClient::new(config.genius_token);

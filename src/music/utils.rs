@@ -25,7 +25,7 @@ pub async fn voice_check(
     if let Some(user_channel_id) = user_channel_id {
         let bot_channel_id = guild
             .voice_states
-            .get(&ctx.discord().cache.current_user_id())
+            .get(&ctx.serenity_context().cache.current_user_id())
             .and_then(|voice_state| voice_state.channel_id);
 
         if let Some(bot_channel_id) = bot_channel_id {
@@ -58,7 +58,7 @@ pub async fn join(
     channel_id: ChannelId,
     text_channel_id: ChannelId,
 ) -> Result<(LavalinkClient, Arc<Mutex<Queue>>), Error> {
-    let manager = songbird::get(ctx.discord())
+    let manager = songbird::get(ctx.serenity_context())
         .await
         .expect("Missing Songbird client")
         .clone();
